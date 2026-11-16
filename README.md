@@ -5,8 +5,9 @@ vertical tab bar and a monochrome look. Free and open source (MIT).
 
 ![f1int showing Wikipedia](docs/screenshot.png)
 
-> **Early preview.** f1int has a vertical tab bar with pinned tabs and groups, an address bar with search,
-> ad blocking, a password manager and more are on the way.
+> **Early preview.** f1int has a vertical tab bar with pinned tabs and groups, and an
+> address bar that also searches. Bookmarks, history, tab sleeping, ad blocking, a
+> password manager and more are on the way.
 
 ## Install
 
