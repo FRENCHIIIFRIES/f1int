@@ -1,0 +1,2 @@
+# Shell scripts run on Mac/Linux build machines and must keep Unix line endings.
+*.sh text eol=lf

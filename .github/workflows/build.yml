@@ -1,0 +1,111 @@
+# Builds f1int installers on GitHub's machines:
+#   Windows x64 (.exe), Mac Apple Silicon (.dmg) and Mac Intel (.dmg).
+# Runs when you push a tag like v0.1.0 (the installers are then attached to a
+# GitHub Release), or by hand from the Actions tab ("Run workflow").
+name: Build installers
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to attach installers to a Release
+
+env:
+  QT_VERSION: 6.12.0
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # qt_packages: Qt itself, Qt WebChannel, Qt Positioning and Qt WebEngine 6.140
+          # (Chromium 140) for Qt 6.12.0. Same names as in the Qt Maintenance Tool.
+          - name: windows-x64
+            os: windows-2022
+            qt_packages: >-
+              qt.qt6.6120.win64_msvc2022_64
+              qt.qt6.6120.addons.qtwebchannel.win64_msvc2022_64
+              qt.qt6.6120.addons.qtpositioning.win64_msvc2022_64
+              extensions.qtwebengine.6120.61400.win64_msvc2022_64
+          - name: macos-arm64
+            os: macos-15
+            arch: arm64
+            qt_packages: >-
+              qt.qt6.6120.clang_64
+              qt.qt6.6120.addons.qtwebchannel.clang_64
+              qt.qt6.6120.addons.qtpositioning.clang_64
+              extensions.qtwebengine.6120.61400.clang_64
+          - name: macos-x86_64      # Intel Macs: built on an Apple Silicon machine
+            os: macos-15
+            arch: x86_64
+            qt_packages: >-
+              qt.qt6.6120.clang_64
+              qt.qt6.6120.addons.qtwebchannel.clang_64
+              qt.qt6.6120.addons.qtpositioning.clang_64
+              extensions.qtwebengine.6120.61400.clang_64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Qt is a few GB, so keep it between runs instead of downloading it every time.
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/Qt
+          key: qt-${{ runner.os }}-${{ env.QT_VERSION }}-${{ hashFiles('.github/workflows/build.yml') }}
+
+      - name: Install Qt
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          QT_EMAIL: ${{ secrets.QT_EMAIL }}
+          QT_PW: ${{ secrets.QT_PW }}
+        run: bash .github/scripts/install-qt.sh "${{ runner.temp }}/Qt" ${{ matrix.qt_packages }}
+
+      - name: Build, test and package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          QT_ROOT: ${{ runner.temp }}\Qt
+        run: ./build.ps1 -Test -Package
+
+      - name: Build, test and package (Mac)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          qt="${{ runner.temp }}/Qt"
+          kit="$qt/$QT_VERSION/macos"
+          # Qt WebEngine may be installed outside the main kit folder ("Extensions").
+          we=$(dirname "$(dirname "$(dirname "$(find "$qt" -name Qt6WebEngineQuickConfig.cmake -print -quit)")")")
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+                -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} \
+                -DCMAKE_PREFIX_PATH="$kit;$we"
+          cmake --build build --parallel
+          # The Intel build can't run its tests on an Apple Silicon machine.
+          if [ "${{ matrix.arch }}" = arm64 ]; then ctest --test-dir build --output-on-failure; fi
+          cpack --config build/CPackConfig.cmake -B build/package
+
+      - name: Keep the installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: f1int-${{ matrix.name }}
+          path: |
+            build/package/*.exe
+            build/package/*.dmg
+          if-no-files-found: error
+
+      - name: Attach to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: ${{ startsWith(github.ref_name, 'v0.') }}   # 0.x = early preview
+          files: |
+            build/package/*.exe
+            build/package/*.dmg
