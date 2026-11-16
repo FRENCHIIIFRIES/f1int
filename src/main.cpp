@@ -1,5 +1,7 @@
+#include <QFontDatabase>
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QStyleHints>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
 // Chromium command-line switches. Qt WebEngine reads them once, when it starts,
@@ -33,6 +35,9 @@ int main(int argc, char *argv[])
     applyChromiumFlags();
     QtWebEngineQuick::initialize();   // must come before the app object is created
     QGuiApplication app(argc, argv);
+    // Dark window frame/title bar to match the dark theme (light mode arrives with Settings).
+    app.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/Doto.ttf"));   // dot-matrix font
 
     QQmlApplicationEngine engine;
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,

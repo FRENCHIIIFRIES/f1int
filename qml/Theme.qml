@@ -1,20 +1,27 @@
 pragma Singleton
 import QtQuick
+import f1int
 
-// All colours and sizes in one place, so every file looks the same.
-// Light mode and the dot-matrix font arrive in Stage 4.
+// All colours, fonts and sizes in one place, so every file looks the same.
+// Monochrome with one red accent; light mode arrives with the Settings page.
 QtObject {
     property bool dark: true
 
-    readonly property color bg:     dark ? "#000000" : "#ffffff"
-    readonly property color fg:     dark ? "#ffffff" : "#000000"
-    readonly property color dim:    dark ? "#5c5c5c" : "#a0a0a0"   // disabled / secondary text
-    readonly property color line:   dark ? "#262626" : "#e0e0e0"   // 1px dividers
-    readonly property color field:  dark ? "#0d0d0d" : "#f6f6f6"   // address bar background
-    readonly property color hover:  dark ? "#161616" : "#f0f0f0"
-    readonly property color press:  dark ? "#222222" : "#e4e4e4"
-    readonly property color accent: "#D71921"                     // active / important only
+    readonly property color bg:       dark ? "#000000" : "#ffffff"
+    readonly property color surface:  dark ? "#0b0b0b" : "#f7f7f7"   // menus, popups, address bar
+    readonly property color fg:       dark ? "#f2f2f2" : "#0a0a0a"
+    readonly property color dim:      dark ? "#6b6b6b" : "#9a9a9a"   // secondary text, disabled
+    readonly property color line:     dark ? "#222222" : "#e3e3e3"   // 1px dividers and borders
+    readonly property color hover:    dark ? "#121212" : "#f0f0f0"
+    readonly property color selected: dark ? "#1a1a1a" : "#e8e8e8"
+    readonly property color press:    dark ? "#262626" : "#dedede"
+    readonly property color accent:   "#D71921"                      // active / important only
 
-    readonly property int radius: 8
-    readonly property int tabBarWidth: 240
+    readonly property string dotFont: "Doto"   // dot-matrix: numbers, counts, headings
+    readonly property int radius: 10
+    readonly property int anim: Browser.reduceMotion ? 0 : 180   // ms; 0 when animations are off
+
+    // Tab group colours: muted so the UI stays mostly black and white.
+    readonly property var groupColors: ["#D71921", dark ? "#f2f2f2" : "#0a0a0a", "#8a8a8a",
+                                        "#d9a62e", "#3fa877", "#4c8df6", "#9d6fd6"]
 }

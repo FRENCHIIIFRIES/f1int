@@ -1,12 +1,11 @@
-# f1int
+﻿# f1int
 
 A low-RAM desktop web browser built on Chromium (through Qt WebEngine), with a
 vertical tab bar and a monochrome look. Free and open source (MIT).
 
-![f1int showing Wikipedia](docs/screenshot-1a.png)
+![f1int showing Wikipedia](docs/screenshot.png)
 
-> **Early preview.** f1int is at stage 1a: one tab, address bar with search,
-> back / forward / reload / home. Real tabs, history, bookmarks, tab sleeping,
+> **Early preview.** f1int has a vertical tab bar with pinned tabs and groups, an address bar with search,
 > ad blocking, a password manager and more are on the way.
 
 ## Install
@@ -70,3 +69,4 @@ attached to a new Release.
 - `tests/` unit tests
 - `tools/` build helpers and the RAM measurement script
 - `licenses/`, `THIRD_PARTY_NOTICES.md` Qt (LGPL-3.0) and other licences
+

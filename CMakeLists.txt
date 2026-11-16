@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt WebEngine is Chromium. "Test" is only used by the unit tests in tests/.
-find_package(Qt6 6.8 REQUIRED COMPONENTS Quick WebEngineQuick Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Svg WebEngineQuick Test)
 qt_standard_project_setup(REQUIRES 6.8)   # turns on Qt's code generators (moc etc.)
 
 # WIN32 = no black console window on Windows. MACOSX_BUNDLE = build an .app on Mac.
@@ -15,6 +15,7 @@ qt_add_executable(f1int WIN32 MACOSX_BUNDLE
     src/main.cpp
     src/Browser.h src/Browser.cpp
     src/UrlInput.h src/UrlInput.cpp
+    src/TabModel.h src/TabModel.cpp
 )
 
 # Qt's generated QML registration code includes our headers by bare name ("Browser.h").
@@ -31,10 +32,28 @@ qt_add_qml_module(f1int
         qml/Theme.qml
         qml/Toolbar.qml
         qml/IconButton.qml
+        qml/Icon.qml
+        qml/DotLoader.qml
+        qml/DotGrid.qml
+        qml/F1Menu.qml
+        qml/WebView.qml
+        qml/TabSidebar.qml
+        qml/TabRow.qml
+        qml/PinnedTile.qml
+        qml/GroupHeader.qml
+)
+
+# Icons and the dot-matrix font, built into the program (":/icons/back.svg", ":/fonts/Doto.ttf").
+file(GLOB icon_files CONFIGURE_DEPENDS resources/icons/*.svg)
+qt_add_resources(f1int assets
+    PREFIX /
+    BASE resources
+    FILES ${icon_files} resources/fonts/Doto.ttf
 )
 
 # Dynamic linking (the default) keeps us within Qt's LGPL licence.
-target_link_libraries(f1int PRIVATE Qt6::Quick Qt6::WebEngineQuick)
+# Svg: draws our icons (and makes the deploy step include the SVG plugin).
+target_link_libraries(f1int PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::WebEngineQuick)
 
 # Mac .app details (shown in Finder / "About").
 set_target_properties(f1int PROPERTIES
@@ -98,3 +117,8 @@ qt_add_executable(tst_urlinput tests/tst_urlinput.cpp src/UrlInput.cpp)
 target_include_directories(tst_urlinput PRIVATE src)
 target_link_libraries(tst_urlinput PRIVATE Qt6::Test)
 add_test(NAME urlinput COMMAND tst_urlinput)
+
+qt_add_executable(tst_tabmodel tests/tst_tabmodel.cpp src/TabModel.cpp src/TabModel.h)
+target_include_directories(tst_tabmodel PRIVATE src)
+target_link_libraries(tst_tabmodel PRIVATE Qt6::Test Qt6::Gui Qt6::Qml)   # Gui: QColor, Qml: registration macros
+add_test(NAME tabmodel COMMAND tst_tabmodel)
