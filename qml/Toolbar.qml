@@ -172,7 +172,7 @@ Rectangle {
                     iconSize: 15
                     visible: bar.view !== null && bar.prettyUrl(bar.view.url) !== ""
                     iconName: starred ? "star-filled" : "star"
-                    iconColor: starred ? Theme.accent : Theme.dim
+                    iconColor: starred ? Theme.accent2 : Theme.dim
                     tip: starred ? qsTr("Remove bookmark (Ctrl+D)") : qsTr("Bookmark this page (Ctrl+D)")
                     onClicked: bar.toggleBookmark()
                 }
@@ -268,7 +268,7 @@ Rectangle {
                 width: 6
                 height: 6
                 radius: 3
-                color: Theme.accent
+                color: Theme.accent2
             }
         }
         IconButton {
@@ -279,15 +279,5 @@ Rectangle {
             tip: qsTr("Menu")
             onClicked: bar.menuRequested(more)
         }
-    }
-
-    // Loading progress: a 2px line in the accent colour along the bottom edge.
-    Rectangle {
-        anchors.bottom: parent.bottom
-        width: bar.view && bar.view.loading ? parent.width * bar.view.loadProgress / 100 : 0
-        height: 2
-        color: Theme.accent
-        visible: width > 0 && !bar.stacked   // in the tab bar, the page card shows progress instead
-        Behavior on width { NumberAnimation { duration: Theme.anim } }
     }
 }

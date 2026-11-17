@@ -155,8 +155,8 @@ QtObject {
                     height: 24
                     radius: Math.min(12, Theme.radius + 2)
                     // The picked choice is a soft raised pill (calm), not a loud accent fill.
-                    color: on ? (Theme.dark ? Qt.rgba(1, 1, 1, 0.16) : "#ffffff") : hover.hovered ? Theme.hover : "transparent"
-                    border.width: on && !Theme.dark ? 1 : 0
+                    color: on ? Theme.tab : hover.hovered ? Theme.hover : "transparent"
+                    border.width: on ? 1 : 0
                     border.color: Theme.line
                     Behavior on color { ColorAnimation { duration: Theme.anim } }
                     HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
@@ -182,6 +182,8 @@ QtObject {
         property string title
         default property alias rows: box.data
         Layout.fillWidth: true
+        // While searching settings, a group with no matching rows hides.
+        visible: Theme.settingsFilter === "" || box.visibleChildren.length > 0
         spacing: 8
         Text {
             text: parent.title
@@ -213,6 +215,7 @@ QtObject {
         property bool last: false
         default property alias control: slot.data
         Layout.fillWidth: true
+        visible: Theme.settingsFilter === "" || (label + " " + hint).toLowerCase().indexOf(Theme.settingsFilter) >= 0
         implicitHeight: Math.max(48, labels.implicitHeight + 24, slot.childrenRect.height + 20)
         ColumnLayout {
             id: labels

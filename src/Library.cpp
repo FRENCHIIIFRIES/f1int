@@ -11,6 +11,7 @@
 #include <QSqlError>
 #include <QSqlQuery>
 #include <QSqlRecord>
+#include <QRegularExpression>
 #include <QUuid>
 
 Library::Library(const QString &dbPath, QObject *parent)
@@ -27,12 +28,16 @@ Library::Library(const QString &dbPath, QObject *parent)
     // Where Chrome, Edge and Brave keep their data on this computer (for importing).
 #if defined(Q_OS_WIN)
     const QString local = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);   // ...\AppData\Local
+    const QString roaming = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation).replace("/Local", "/Roaming");
     browserRoots = { { "Chrome", local + "/Google/Chrome/User Data" }, { "Edge", local + "/Microsoft/Edge/User Data" },
-                     { "Brave", local + "/BraveSoftware/Brave-Browser/User Data" } };
+                     { "Brave", local + "/BraveSoftware/Brave-Browser/User Data" },
+                     { "Opera", roaming + "/Opera Software/Opera Stable" }, { "Opera GX", roaming + "/Opera Software/Opera GX Stable" } };
+    firefoxRoot = roaming + "/Mozilla/Firefox";
 #elif defined(Q_OS_MACOS)
     const QString support = QDir::homePath() + "/Library/Application Support";
     browserRoots = { { "Chrome", support + "/Google/Chrome" }, { "Edge", support + "/Microsoft Edge" },
-                     { "Brave", support + "/BraveSoftware/Brave-Browser" } };
+                     { "Brave", support + "/BraveSoftware/Brave-Browser" }, { "Opera", support + "/com.operasoftware.Opera" } };
+    firefoxRoot = support + "/Firefox";
 #endif
 }
 
@@ -150,34 +155,123 @@ QVariantList Library::otherBrowserProfiles() const
         QJsonObject names;
         if (state.open(QIODevice::ReadOnly))
             names = QJsonDocument::fromJson(state.readAll())["profile"]["info_cache"].toObject();
-        for (const QString &sub : dir.entryList({ QStringLiteral("Default"), QStringLiteral("Profile *") }, QDir::Dirs)) {
+        QStringList subs = dir.entryList({ QStringLiteral("Default"), QStringLiteral("Profile *") }, QDir::Dirs);
+        if (QFile::exists(dir.filePath(QStringLiteral("History"))) || QFile::exists(dir.filePath(QStringLiteral("Bookmarks"))))
+            subs.prepend(QStringLiteral("."));   // Opera: the folder itself is the profile
+        for (const QString &sub : subs) {
             if (!QFile::exists(dir.filePath(sub + QStringLiteral("/History"))) && !QFile::exists(dir.filePath(sub + QStringLiteral("/Bookmarks"))))
                 continue;
             QString name = names[sub].toObject()["name"].toString();
-            out.append(QVariantMap{ { "browser", browser }, { "name", name.isEmpty() ? sub : name }, { "path", dir.filePath(sub) } });
+            out.append(QVariantMap{ { "browser", browser }, { "name", name.isEmpty() ? (sub == "." ? tr("Default") : sub) : name },
+                                    { "path", QDir::cleanPath(dir.filePath(sub)) }, { "kind", "chromium" } });
         }
+    }
+    // Firefox: every folder under Profiles that has a places.sqlite (bookmarks + history).
+    const QDir firefox(firefoxRoot + QStringLiteral("/Profiles"));
+    for (const QString &sub : firefox.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (!QFile::exists(firefox.filePath(sub + QStringLiteral("/places.sqlite"))))
+            continue;
+        const QString name = sub.contains('.') ? sub.section('.', 1) : sub;   // "abc123.default-release" -> "default-release"
+        out.append(QVariantMap{ { "browser", "Firefox" }, { "name", name }, { "path", firefox.filePath(sub) }, { "kind", "firefox" } });
     }
     return out;
 }
 
-QVariantMap Library::importProfile(const QString &profilePath)
+// Reads another browser's SQLite file from a copy (plus its write-ahead log, which holds the
+// newest entries), so the original is never touched, even while that browser is open.
+static bool readCopy(const QString &source, const QString &sql, const std::function<void(QSqlQuery &)> &row)
 {
+    const QString dir = QDir::temp().filePath(QStringLiteral("f1int-import-%1").arg(QUuid::createUuid().toString(QUuid::Id128)));
+    QDir().mkpath(dir);
+    const QString copy = dir + QStringLiteral("/data.db");
+    bool ok = QFile::copy(source, copy);
+    if (ok && QFile::exists(source + QStringLiteral("-wal")))
+        QFile::copy(source + QStringLiteral("-wal"), copy + QStringLiteral("-wal"));
+    if (ok) {
+        const QString name = QUuid::createUuid().toString();
+        {
+            QSqlDatabase other = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
+            other.setDatabaseName(copy);
+            ok = other.open();
+            if (ok) {
+                QSqlQuery read(other);
+                ok = read.exec(sql);
+                while (ok && read.next())
+                    row(read);
+            }
+        }
+        QSqlDatabase::removeDatabase(name);
+    }
+    QDir(dir).removeRecursively();
+    return ok;
+}
+
+QVariantMap Library::importProfile(const QString &profilePath, const QVariantMap &options)
+{
+    const bool wantBookmarks = options.value("bookmarks", true).toBool();
+    const bool wantHistory = options.value("history", true).toBool();
+    const bool dryRun = options.value("dryRun", false).toBool();
     int bookmarks = 0, history = 0;
+    QString error, search;
     QSqlDatabase db = QSqlDatabase::database(m_connection);
-    db.transaction();   // one write instead of thousands: much faster
+    db.transaction();   // one write instead of thousands; a dry run rolls it all back at the end
+    QSqlQuery write(db);
+    write.prepare(QStringLiteral("INSERT INTO history (url, title, last_visit, visits) VALUES (?, ?, ?, ?) "
+                                 "ON CONFLICT(url) DO UPDATE SET visits = max(visits, excluded.visits), "
+                                 "last_visit = max(last_visit, excluded.last_visit)"));
+    const auto addVisit = [&](const QUrl &url, const QString &title, qint64 when, int visits) {
+        if (url.scheme() != QLatin1String("http") && url.scheme() != QLatin1String("https"))
+            return;
+        write.addBindValue(url.toString());
+        write.addBindValue(title);
+        write.addBindValue(when);
+        write.addBindValue(qMax(1, visits));
+        if (write.exec())
+            ++history;
+    };
+    const auto addBookmark = [&](const QUrl &url, const QString &title, qint64 when) {
+        if (!url.isValid() || url.scheme().isEmpty() || url.scheme() == QLatin1String("place") || isBookmarked(url))
+            return;
+        exec(QStringLiteral("INSERT INTO bookmarks (url, title, added) VALUES (?, ?, ?)"), { url.toString(), title, when });
+        ++bookmarks;
+    };
+
+    if (QFile::exists(profilePath + QStringLiteral("/places.sqlite"))) {
+        // Firefox: bookmarks and history share one database. Times are microseconds since 1970.
+        const QString places = profilePath + QStringLiteral("/places.sqlite");
+        bool ok = true;
+        if (wantBookmarks)
+            ok = readCopy(places, QStringLiteral("SELECT p.url, b.title, b.dateAdded FROM moz_bookmarks b JOIN moz_places p ON p.id = b.fk WHERE b.type = 1"),
+                          [&](QSqlQuery &q) { addBookmark(QUrl(q.value(0).toString()), q.value(1).toString(), q.value(2).toLongLong() / 1000); });
+        if (ok && wantHistory)
+            ok = readCopy(places, QStringLiteral("SELECT url, title, last_visit_date, visit_count FROM moz_places WHERE last_visit_date IS NOT NULL "
+                                                 "AND hidden = 0 ORDER BY last_visit_date DESC LIMIT 50000"),
+                          [&](QSqlQuery &q) { addVisit(QUrl(q.value(0).toString()), q.value(1).toString(), q.value(2).toLongLong() / 1000, q.value(3).toInt()); });
+        if (!ok)
+            error = tr("Couldn't read Firefox's data: close Firefox, then try again.");
+        dryRun ? db.rollback() : db.commit();   // (Firefox's search setting is in a compressed format of its own: not read)
+        goto done;
+    }
+
+    {
+    // Search engine: Chromium browsers keep the default one in "Preferences".
+    QFile prefs(profilePath + QStringLiteral("/Preferences"));
+    if (options.value("search", true).toBool() && prefs.open(QIODevice::ReadOnly)) {
+        const QString url = QJsonDocument::fromJson(prefs.readAll())["default_search_provider_data"]["template_url_data"]["url"].toString();
+        if (url.contains(QLatin1String("{searchTerms}")))
+            search = url.contains(QLatin1String("{google:baseURL}")) ? QStringLiteral("https://www.google.com/search?q=%s")
+                                                                   : QString(url).replace(QLatin1String("{searchTerms}"), QLatin1String("%s"))
+                                                                         .remove(QRegularExpression(QStringLiteral("[&?][^&?]*\\{[^}]*\\}[^&]*")));
+    }
 
     // Bookmarks: a JSON file with folders inside folders. f1int keeps a flat list, so
     // every bookmark comes over; the folder names don't (yet).
     QFile file(profilePath + QStringLiteral("/Bookmarks"));
-    if (file.open(QIODevice::ReadOnly)) {
+    if (wantBookmarks && file.open(QIODevice::ReadOnly)) {
         std::function<void(const QJsonObject &)> walk = [&](const QJsonObject &node) {
             if (node["type"].toString() == QLatin1String("url")) {
                 const QUrl url(node["url"].toString());
-                if (url.isValid() && !isBookmarked(url)) {
-                    exec(QStringLiteral("INSERT INTO bookmarks (url, title, added) VALUES (?, ?, ?)"),
-                         { url.toString(), node["name"].toString(), fromChromeTime(node["date_added"].toString().toLongLong()) });
-                    ++bookmarks;
-                }
+                addBookmark(url, node["name"].toString(), fromChromeTime(node["date_added"].toString().toLongLong()));
             }
             for (const QJsonValue &child : node["children"].toArray())
                 walk(child.toObject());
@@ -187,54 +281,23 @@ QVariantMap Library::importProfile(const QString &profilePath)
             walk(root.toObject());
     }
 
-    // History: an SQLite database. Read a copy, so the other browser's file is never touched.
-    QString error;
+    // History: an SQLite database (read from a copy).
     const QString source = profilePath + QStringLiteral("/History");
-    if (QFile::exists(source)) {
-        const QString copy = QDir::temp().filePath(QStringLiteral("f1int-import-%1.db").arg(QUuid::createUuid().toString(QUuid::Id128)));
-        if (!QFile::copy(source, copy)) {
-            error = tr("Couldn't read the history: close that browser first, then import again.");
-        } else {
-            const QString name = QUuid::createUuid().toString();
-            {
-                QSqlDatabase other = QSqlDatabase::addDatabase(QStringLiteral("QSQLITE"), name);
-                other.setDatabaseName(copy);
-                other.setConnectOptions(QStringLiteral("QSQLITE_OPEN_READONLY"));
-                if (other.open()) {
-                    QSqlQuery read(other);
-                    read.exec(QStringLiteral("SELECT url, title, last_visit_time, visit_count FROM urls "
-                                             "WHERE hidden = 0 ORDER BY last_visit_time DESC LIMIT 50000"));
-                    QSqlQuery write(db);
-                    write.prepare(QStringLiteral("INSERT INTO history (url, title, last_visit, visits) VALUES (?, ?, ?, ?) "
-                                                 "ON CONFLICT(url) DO UPDATE SET visits = max(visits, excluded.visits), "
-                                                 "last_visit = max(last_visit, excluded.last_visit)"));
-                    while (read.next()) {
-                        const QUrl url(read.value(0).toString());
-                        if (url.scheme() != QLatin1String("http") && url.scheme() != QLatin1String("https"))
-                            continue;
-                        write.addBindValue(url.toString());
-                        write.addBindValue(read.value(1).toString());
-                        write.addBindValue(fromChromeTime(read.value(2).toLongLong()));
-                        write.addBindValue(qMax(1, read.value(3).toInt()));
-                        if (write.exec())
-                            ++history;
-                    }
-                } else {
-                    error = tr("That history file couldn't be opened.");
-                }
-            }
-            QSqlDatabase::removeDatabase(name);
-            QFile::remove(copy);
-        }
+    if (wantHistory && QFile::exists(source)
+        && !readCopy(source, QStringLiteral("SELECT url, title, last_visit_time, visit_count FROM urls WHERE hidden = 0 "
+                                            "ORDER BY last_visit_time DESC LIMIT 50000"),
+                     [&](QSqlQuery &q) { addVisit(QUrl(q.value(0).toString()), q.value(1).toString(), fromChromeTime(q.value(2).toLongLong()), q.value(3).toInt()); }))
+        error = tr("Couldn't read the history: close that browser, then try again.");
     }
-    db.commit();
-    bump();
-    QVariantMap result{ { "bookmarks", bookmarks }, { "history", history } };
+    dryRun ? db.rollback() : db.commit();
+done:
+    if (!dryRun)
+        bump();
+    QVariantMap result{ { "bookmarks", bookmarks }, { "history", history }, { "search", search } };
     if (!error.isEmpty())
         result.insert(QStringLiteral("error"), error);
     return result;
 }
-
 QVariantList Library::query(const QString &sql, const QVariantList &args) const
 {
     QSqlQuery q(QSqlDatabase::database(m_connection));
@@ -259,4 +322,71 @@ QVariantList Library::query(const QString &sql, const QVariantList &args) const
 void Library::exec(const QString &sql, const QVariantList &args)
 {
     query(sql, args);
+}
+
+int Library::importBookmarksHtml(const QUrl &file)
+{
+    // The "Netscape bookmark file" every browser exports: <A HREF="..." ADD_DATE="...">Title</A>
+    QFile f(file.toLocalFile());
+    if (!file.isLocalFile() || f.size() > 50 * 1024 * 1024 || !f.open(QIODevice::ReadOnly))
+        return -1;
+    const QString html = QString::fromUtf8(f.readAll());
+    static const QRegularExpression link(QStringLiteral("<a\\s([^>]*)>(.*?)</a>"), QRegularExpression::CaseInsensitiveOption | QRegularExpression::DotMatchesEverythingOption);
+    static const QRegularExpression href(QStringLiteral("href=\"([^\"]*)\""), QRegularExpression::CaseInsensitiveOption);
+    static const QRegularExpression added(QStringLiteral("add_date=\"(\\d+)\""), QRegularExpression::CaseInsensitiveOption);
+    const auto unescape = [](QString t) {
+        return t.remove(QRegularExpression(QStringLiteral("<[^>]*>"))).replace("&lt;", "<").replace("&gt;", ">")
+                .replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&").trimmed();
+    };
+    int count = 0;
+    QSqlDatabase db = QSqlDatabase::database(m_connection);
+    db.transaction();
+    for (auto it = link.globalMatch(html); it.hasNext();) {
+        const auto m = it.next();
+        const QUrl url(unescape(href.match(m.captured(1)).captured(1)));
+        if (!url.isValid() || (url.scheme() != QLatin1String("http") && url.scheme() != QLatin1String("https")) || isBookmarked(url))
+            continue;
+        const qint64 secs = added.match(m.captured(1)).captured(1).toLongLong();
+        exec(QStringLiteral("INSERT INTO bookmarks (url, title, added) VALUES (?, ?, ?)"),
+             { url.toString(), unescape(m.captured(2)), secs > 0 ? secs * 1000 : QDateTime::currentMSecsSinceEpoch() });
+        ++count;
+    }
+    db.commit();
+    bump();
+    return count;
+}
+
+bool Library::exportBookmarksHtml(const QUrl &file) const
+{
+    const auto esc = [](QString t) { return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;"); };
+    QString out = QStringLiteral("<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<META HTTP-EQUIV=\"Content-Type\" CONTENT=\"text/html; charset=UTF-8\">\n"
+                                 "<TITLE>Bookmarks</TITLE>\n<H1>Bookmarks</H1>\n<DL><p>\n");
+    for (const QVariant &v : bookmarks()) {
+        const QVariantMap b = v.toMap();
+        out += QStringLiteral("    <DT><A HREF=\"%1\" ADD_DATE=\"%2\">%3</A>\n")
+                   .arg(esc(b["url"].toString())).arg(b["added"].toLongLong() / 1000).arg(esc(b["title"].toString()));
+    }
+    out += QStringLiteral("</DL><p>\n");
+    QFile f(file.toLocalFile());
+    return file.isLocalFile() && f.open(QIODevice::WriteOnly | QIODevice::Truncate) && f.write(out.toUtf8()) >= 0;
+}
+
+int Library::addHistory(const QVariantList &entries)
+{
+    int count = 0;
+    QSqlDatabase db = QSqlDatabase::database(m_connection);
+    db.transaction();
+    for (const QVariant &v : entries) {
+        const QVariantMap e = v.toMap();
+        const QUrl url(e["url"].toString());
+        if (url.scheme() != QLatin1String("http") && url.scheme() != QLatin1String("https"))
+            continue;
+        exec(QStringLiteral("INSERT INTO history (url, title, last_visit, visits) VALUES (?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET "
+                            "visits = max(visits, excluded.visits), last_visit = max(last_visit, excluded.last_visit)"),
+             { url.toString(), e["title"].toString(), e["last_visit"].toLongLong(), qMax(1, e["visits"].toInt()) });
+        ++count;
+    }
+    db.commit();
+    bump();
+    return count;
 }

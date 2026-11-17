@@ -2,6 +2,7 @@
 
 #include <QCoreApplication>
 #include <QList>
+#include <QColor>
 #include <QObject>
 #include <QPointer>
 #include <QSettings>
@@ -63,6 +64,14 @@ public:
     // Windows 11: frosted-glass ("acrylic") window background, light or dark.
     // Returns false where it isn't available (the window then uses a solid colour).
     Q_INVOKABLE bool applyBackdrop(QQuickWindow *window, bool dark);
+    // Windows 11: colour the title bar to match f1int (caption, title text, dark-mode buttons).
+    // Small text files the user picked in a file dialog (theme files, backups). Max 5 MB.
+    Q_INVOKABLE QString readTextFile(const QUrl &file) const;
+    // Backups: your settings (not passwords, not window state), and restoring them.
+    Q_INVOKABLE QVariantMap settingsForBackup() const;
+    Q_INVOKABLE int restoreSettings(const QVariantMap &values);
+    Q_INVOKABLE bool writeTextFile(const QUrl &file, const QString &text) const;
+    Q_INVOKABLE void applyFrameColors(QQuickWindow *window, const QColor &caption, const QColor &text, bool dark);
     QString version() const { return QCoreApplication::applicationVersion(); }
 
     // Address bar text -> URL to open (a web address, or a search).

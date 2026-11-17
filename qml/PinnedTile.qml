@@ -29,10 +29,10 @@ Item {
         y: 2
         width: tile.width - 4
         height: tile.height - 4
-        radius: 8
-        color: tile.current ? Theme.selected : hover.hovered ? Theme.hover : Theme.field
+        radius: Theme.radius
+        color: tile.current ? Theme.tab : hover.hovered ? Theme.hover : Theme.field
         border.width: 1
-        border.color: tile.current ? Theme.accent : Theme.line
+        border.color: tile.current ? Theme.accent : "transparent"
         opacity: tile.asleep && !tile.current ? 0.45 : 1
         Drag.active: mouse.drag.active
         Drag.source: body
@@ -50,7 +50,7 @@ Item {
             height: 16
             source: tile.icon
             sourceSize: Qt.size(16, 16)
-            visible: !tile.loading && status === Image.Ready
+            visible: !tile.loading && status === Image.Ready && implicitWidth > 0
         }
         Icon {
             anchors.centerIn: parent

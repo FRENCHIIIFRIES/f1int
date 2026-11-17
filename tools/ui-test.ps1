@@ -4,8 +4,9 @@
 param([string]$Script = "$PSScriptRoot\..\tests\ui\tabbar.qml",
       [string[]]$Urls = @('https://www.wikipedia.org', 'https://github.com', 'https://news.ycombinator.com', 'https://www.bbc.co.uk'),
       [int]$Timeout = 90,
-      [switch]$Screen,
-      [string]$Name = 'f1int-test')   # test profile name; must start with "f1int-test" (use your own to run tests side by side)   # capture the screen (shows the frosted glass) instead of the window's own drawing
+      [switch]$Screen,                 # capture the screen (shows the frosted glass) instead of the window's own drawing
+      [string]$Name = 'f1int-test',    # test profile name; must start with "f1int-test" (use your own to run tests side by side)
+      [switch]$Offscreen)              # no window: checks still run while the monitor sleeps (Qt Quick stops drawing then), but no screenshots
 $ErrorActionPreference = 'Stop'
 # "powershell -File" hands a list over as one "a,b,c" string: split it back into URLs.
 $Urls = @($Urls | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
@@ -33,7 +34,9 @@ $out = New-Item -ItemType Directory -Force "$PSScriptRoot\..\build\ui-shots"
 $log = Join-Path $out 'app.log'
 $env:F1INT_UI_TEST = (Resolve-Path $Script).Path
 $env:QT_FORCE_STDERR_LOGGING = '1'
+if ($Offscreen) { $env:QT_QPA_PLATFORM = 'offscreen' }
 $p = Start-Process "$PSScriptRoot\..\build\f1int.exe" -ArgumentList $Urls -PassThru -RedirectStandardError $log
+$null = $p.Handle   # keep the handle, so the exit code can be read later
 $seen = 0
 $deadline = (Get-Date).AddSeconds($Timeout)
 while ((Get-Date) -lt $deadline -and -not $p.HasExited) {
@@ -41,7 +44,8 @@ while ((Get-Date) -lt $deadline -and -not $p.HasExited) {
     $lines = @(Get-Content $log -ErrorAction SilentlyContinue)
     if ($lines.Count -le $seen) { continue }   # nothing new (a reversed range would re-read old lines)
     foreach ($line in $lines[$seen..($lines.Count - 1)] | Where-Object { $_ }) {
-        if ($line -match 'SHOT (\S+)') {
+        if ($line -match 'SHOT (\S+)' -and $Offscreen) { "shot skipped (offscreen): $($Matches[1])" }
+        elseif ($line -match 'SHOT (\S+)') {
             $p.Refresh(); $h = $p.MainWindowHandle
             $r = New-Object Shot+R; [void][Shot]::GetWindowRect($h, [ref]$r)
             $bmp = New-Object System.Drawing.Bitmap ($r.Ri - $r.L), ($r.B - $r.T)
@@ -60,6 +64,10 @@ while ((Get-Date) -lt $deadline -and -not $p.HasExited) {
     }
     $seen = $lines.Count
 }
+# Say how the app ended: a test that stops early is either a crash or a hang.
+$p.Refresh()
+if ($p.HasExited) { "app exited, code $('0x{0:X8}' -f $p.ExitCode)" }
+elseif (-not (Select-String -Path $log -Pattern 'DONE' -Quiet)) { "app still running at the time limit, responding: $($p.Responding)" }
 Stop-Process -Id $p.Id -ErrorAction SilentlyContinue
 '--- warnings ---'
 Get-Content $log | Where-Object { $_ -notmatch 'SHOT|DONE|WebEngineProfilePrototype' } | Select-Object -First 30

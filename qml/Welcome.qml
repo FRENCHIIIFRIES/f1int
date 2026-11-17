@@ -449,7 +449,7 @@ Rectangle {
                 Text {
                     Layout.fillWidth: true
                     wrapMode: Text.WordWrap
-                    text: qsTr("Pick a look. Everything else (corners, spacing, text size, layout) is in Settings.")
+                    text: qsTr("Pick a theme. You can change every colour, corner and spacing later in Settings > Appearance.")
                     color: Theme.dim
                     font.pixelSize: Theme.px(14)
                 }
@@ -457,64 +457,50 @@ Rectangle {
                     Layout.fillWidth: true
                     Layout.topMargin: 6
                     spacing: 28
-                    GridLayout {
-                        columns: 2
-                        columnSpacing: 16
-                        rowSpacing: 16
-                        Text { text: qsTr("Theme"); color: Theme.fg; font.pixelSize: Theme.px(13) }
+                    ColumnLayout {
+                        spacing: 14
                         Ui.Segmented {
                             options: [{ label: qsTr("Dark"), value: "dark" }, { label: qsTr("Light"), value: "light" }, { label: qsTr("System"), value: "system" }]
-                            value: Theme.customTint ? "" : Theme.mode
-                            onPicked: (v) => { Browser.setSetting("appearance/theme", v); Browser.setSetting("appearance/tint", "") }
+                            value: Theme.mode
+                            onPicked: (v) => Browser.setSetting("appearance/theme", v)
                         }
-                        Text { text: qsTr("Tint"); color: Theme.fg; font.pixelSize: Theme.px(13) }
-                        Row {
-                            spacing: 8
+                        GridLayout {   // the six presets
+                            columns: 3
+                            columnSpacing: 8
+                            rowSpacing: 8
                             Repeater {
-                                model: Theme.dark ? ["graphite", "midnight"] : ["paper", "mist"]
+                                model: Theme.presetOrder
                                 Rectangle {
+                                    id: presetCard
                                     required property string modelData
-                                    readonly property bool on: Theme.tint === modelData
-                                    width: 52; height: 30; radius: Theme.radius
-                                    color: Theme.tints[modelData].chrome
+                                    readonly property var p: Theme.presets[modelData]
+                                    readonly property bool on: Theme.preset === modelData
+                                    Layout.preferredWidth: 112
+                                    Layout.preferredHeight: 52
+                                    radius: Theme.radius
+                                    color: p.frame
                                     border.width: on ? 2 : 1
                                     border.color: on ? Theme.accent : Theme.line
                                     Accessible.role: Accessible.RadioButton
-                                    Accessible.name: modelData
+                                    Accessible.name: p.name
                                     Accessible.checked: on
+                                    Rectangle { x: 4; y: 4; width: 20; height: parent.height - 8; radius: 4; color: presetCard.p.sidebar }
+                                    Rectangle { x: 30; y: 10; width: 10; height: 10; radius: 5; color: presetCard.p.accent }
+                                    Rectangle { x: 44; y: 10; width: 10; height: 10; radius: 5; color: presetCard.p.accent2 }
+                                    Text { x: 30; y: 28; text: presetCard.p.name; color: presetCard.p.fg; font.pixelSize: Theme.px(12) }
                                     HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                    MouseArea { anchors.fill: parent; onClicked: Browser.setSetting("appearance/tint", parent.modelData) }
-                                }
-                            }
-                        }
-                        Text { text: qsTr("Accent"); color: Theme.fg; font.pixelSize: Theme.px(13) }
-                        Row {
-                            spacing: 6
-                            Repeater {
-                                model: ["auto", "#4c8df6", "#3fa877", "#9d6fd6", "#e0569b", "#8a8a8a", "fg"]
-                                Rectangle {
-                                    required property string modelData
-                                    readonly property bool on: Theme.accentSetting.toLowerCase() === modelData.toLowerCase()
-                                    width: 26; height: 26; radius: 13
-                                    color: "transparent"
-                                    border.width: on ? 2 : 0
-                                    border.color: Theme.fg
-                                    Accessible.role: Accessible.RadioButton
-                                    Accessible.name: modelData === "auto" ? qsTr("Automatic") : modelData === "fg" ? qsTr("Plain") : modelData
-                                    Accessible.checked: on
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        width: 18; height: 18; radius: 9
-                                        color: parent.modelData === "auto" ? Theme.autoAccent : parent.modelData === "fg" ? Theme.fg : parent.modelData
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        onClicked: {
+                                            Browser.setSetting(presetCard.p.light ? "appearance/lightPreset" : "appearance/darkPreset", presetCard.modelData)
+                                            if (Theme.mode !== "system") Browser.setSetting("appearance/theme", presetCard.p.light ? "light" : "dark")
+                                        }
                                     }
-                                    HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                    MouseArea { anchors.fill: parent; onClicked: Browser.setSetting("appearance/accent", parent.modelData) }
                                 }
                             }
                         }
-                        Text { text: qsTr("Tab bar"); color: Theme.fg; font.pixelSize: Theme.px(13) }
                         Ui.Segmented {
-                            options: [{ label: qsTr("Left"), value: "left" }, { label: qsTr("Right"), value: "right" }]
+                            options: [{ label: qsTr("Tabs on the left"), value: "left" }, { label: qsTr("Tabs on the right"), value: "right" }]
                             value: Theme.tabsOnRight ? "right" : "left"
                             onPicked: (v) => Browser.setSetting("layout/tabsSide", v)
                         }

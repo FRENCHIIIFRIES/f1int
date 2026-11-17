@@ -93,6 +93,11 @@ qt_add_qml_module(f1int
         qml/NewTabPage.qml
         qml/PasswordsPanel.qml
         qml/Welcome.qml
+        qml/BookmarksBar.qml
+        qml/SettingsPage.qml
+        qml/ThemeStudio.qml
+        qml/ImportExport.qml
+        qml/Extensions.qml
 )
 
 # Icons, logo, dot-matrix font and the starter ad-block list, built into the program

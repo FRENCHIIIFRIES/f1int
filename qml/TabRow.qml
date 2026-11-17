@@ -37,10 +37,11 @@ Item {
         property int tabId: row.tabId   // read by the DropArea of the tab it's dropped on
         width: row.width
         height: Theme.rowHeight
-        radius: Theme.radius
-        color: row.current ? Theme.selected : hover.hovered ? Theme.hover : "transparent"
-        // In light mode the open tab is a white pill; a hairline keeps it visible on light tints.
-        border.width: row.current && !Theme.dark ? 1 : 0
+        radius: Theme.tabRadius
+        // Open tab: raised fill + hairline (pill/square), or an accent bar (line style).
+        readonly property bool filled: row.current && Theme.tabStyle !== "line"
+        color: filled ? Theme.tab : hover.hovered && Theme.hoverEffects ? Theme.hover : "transparent"
+        border.width: filled ? 1 : 0
         border.color: Theme.line
         opacity: row.asleep && !row.current ? 0.5 : 1   // sleeping tabs are faded
         Behavior on color { ColorAnimation { duration: Theme.anim } }
@@ -68,9 +69,17 @@ Item {
             }
         }
 
+        Rectangle {   // line style: accent bar on the open tab
+            visible: row.current && Theme.tabStyle === "line"
+            width: 3
+            height: parent.height * 0.6
+            anchors.verticalCenter: parent.verticalCenter
+            radius: 1.5
+            color: Theme.accent
+        }
         // In a group: a short bar in the group's colour.
         Rectangle {
-            visible: row.group !== null
+            visible: row.group !== null && !(row.current && Theme.tabStyle === "line")
             x: 3
             width: 3
             height: parent.height * 0.45
@@ -90,7 +99,7 @@ Item {
                 anchors.fill: parent
                 source: row.icon
                 sourceSize: Qt.size(16, 16)   // decode small: saves RAM
-                visible: !row.loading && status === Image.Ready
+                visible: !row.loading && status === Image.Ready && implicitWidth > 0   // the favicon store can return an empty image
             }
             Icon {
                 anchors.fill: parent
@@ -131,7 +140,7 @@ Item {
                 implicitHeight: 24
                 iconSize: 14
                 iconName: row.muted ? "muted" : "speaker"
-                iconColor: row.muted ? Theme.dim : Theme.fg
+                iconColor: row.muted ? Theme.dim : Theme.accent2
                 tip: row.muted ? qsTr("Unmute tab") : qsTr("Mute tab")
                 onClicked: row.muteToggled()
             }

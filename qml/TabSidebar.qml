@@ -3,9 +3,10 @@ import QtQuick.Controls.Basic
 import QtQuick.Layouts
 import f1int
 
-// The tab bar (left or right, see Settings > Appearance): toolbar (optional), search,
-// new tab, pinned tabs, the other tabs with their groups, and a small footer.
-// Collapses to icons; hovering opens it again. Drag its inner edge to resize.
+// The tab column (left or right): f1int's deepest surface. From the top: the logo row
+// (lined up with the toolbar), the toolbar when it lives here, tab search, pinned sites,
+// "New tab", the tabs with their groups, what's playing, and your shortcuts.
+// Collapses to icons (Ctrl+Shift+S); resting the mouse on it slides it open over the page.
 Rectangle {
     id: sidebar
     property TabModel tabs
@@ -13,25 +14,29 @@ Rectangle {
     property bool collapsed: String(Browser.setting("tabbar/collapsed", false)) === "true"
     property real expandedWidth: Number(Browser.setting("tabbar/width", 260))
     readonly property int narrowWidth: 56
-    readonly property bool narrow: collapsed && !hover.hovered
-    // Room the page leaves for the bar. When collapsed, the bar floats over the page on hover.
+    // Collapsed bars peek open on hover, after a short pause. Not right after collapsing it:
+    // the mouse is still on it then, and it would spring straight back open.
+    property bool peek: false
+    readonly property bool narrow: collapsed && !peek
+    // Room the page leaves for the bar. A peeking bar floats over the page instead.
     readonly property real reservedWidth: collapsed ? narrowWidth : expandedWidth
-    // Where the toolbar sits when it's in the tab bar (Main.qml moves it here).
     property alias toolbarSlot: slot
     property bool hasToolbar: false
-    property bool searchOpen: false   // the tab search box (footer button or Ctrl+Shift+A)
+    property bool searchOpen: false   // the tab search box (shortcut or Ctrl+Shift+A)
+    // "Now playing": { tabId, icon, tabTitle, title, artist, playing, video, muted, poppedOut } or null.
+    property var media: null
 
     signal newTabRequested()
     signal tabMenuRequested(int tabId)
     signal groupMenuRequested(int groupId)
     signal muteToggled(int tabId)
     signal panelRequested(string name)
-    // "Now playing": { tabId, icon, tabTitle, title, artist, playing, video, muted, poppedOut } or null.
-    property var media: null
     signal mediaAction(string action)   // "toggle" | "mute" | "pip" | "focus"
 
     function toggle() {
         collapsed = !collapsed
+        peek = false
+        peekTimer.stop()
         Browser.setSetting("tabbar/collapsed", collapsed)
     }
     function focusSearch() {
@@ -47,92 +52,182 @@ Rectangle {
                 return groups[i]
         return null
     }
+    // The footer shortcuts: what each one shows and does.
+    readonly property var shortcutInfo: ({
+        bookmarks: { icon: "star", label: qsTr("Bookmarks"), tip: qsTr("Bookmarks (Ctrl+Shift+O)") },
+        history: { icon: "history", label: qsTr("History"), tip: qsTr("History (Ctrl+H)") },
+        downloads: { icon: "download", label: qsTr("Downloads"), tip: qsTr("Downloads (Ctrl+J)") },
+        passwords: { icon: "key", label: qsTr("Passwords"), tip: qsTr("Passwords") },
+        search: { icon: "search", label: qsTr("Search tabs"), tip: qsTr("Search tabs (Ctrl+Shift+A)") },
+        settings: { icon: "settings", label: qsTr("Settings"), tip: qsTr("Settings (Ctrl+,)") }
+    })
+    function runShortcut(name) {
+        if (name === "search") searchOpen ? (searchOpen = false, search.text = "") : focusSearch()
+        else panelRequested(name)
+    }
 
     width: narrow ? narrowWidth : expandedWidth
     Behavior on width {
         enabled: !resizer.pressed
         NumberAnimation { duration: Theme.anim; easing.type: Easing.OutCubic }
     }
-    // Normally see-through (the window's tint shows); solid while floating over the page.
-    color: collapsed && !narrow ? Theme.chromeSolid : "transparent"
+    color: Theme.glass ? Qt.rgba(Theme.sidebar.r, Theme.sidebar.g, Theme.sidebar.b, Theme.glassTint) : Theme.sidebar
     clip: true
-    HoverHandler { id: hover }
+
+    HoverHandler {
+        id: hover
+        onHoveredChanged: {
+            if (hovered && sidebar.collapsed) peekTimer.restart()
+            else { peekTimer.stop(); sidebar.peek = false }
+        }
+    }
+    Timer { id: peekTimer; interval: 260; onTriggered: sidebar.peek = hover.hovered && sidebar.collapsed }
+
+    // A hairline on the inner edge; a soft shadow while it floats over the page.
+    Rectangle {
+        x: Theme.tabsOnRight ? 0 : parent.width - 1
+        width: 1
+        height: parent.height
+        color: Theme.line
+    }
+    Rectangle {
+        visible: sidebar.collapsed && sidebar.peek
+        x: Theme.tabsOnRight ? -8 : parent.width
+        width: 8
+        height: parent.height
+        gradient: Gradient {
+            orientation: Gradient.Horizontal
+            GradientStop { position: 0; color: Theme.tabsOnRight ? "transparent" : Qt.rgba(0, 0, 0, 0.25) }
+            GradientStop { position: 1; color: Theme.tabsOnRight ? Qt.rgba(0, 0, 0, 0.25) : "transparent" }
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: Theme.inset
-        anchors.leftMargin: Theme.tabsOnRight ? 0 : Theme.inset
-        anchors.rightMargin: Theme.tabsOnRight ? Theme.inset : 0
+        anchors.leftMargin: 8
+        anchors.rightMargin: 8
+        anchors.bottomMargin: 8
         spacing: Theme.gap
+
+        // ---- Logo row: lines up with the toolbar beside it ----
+        Item {
+            Layout.fillWidth: true
+            Layout.preferredHeight: 46
+            Image {
+                id: mark
+                x: sidebar.narrow ? (parent.width - width) / 2 : 6
+                anchors.verticalCenter: parent.verticalCenter
+                source: "qrc:/logo/f1int.svg"
+                sourceSize: Qt.size(40, 40)
+                width: 20
+                height: 20
+                Behavior on x { NumberAnimation { duration: Theme.anim; easing.type: Easing.OutCubic } }
+            }
+            Text {
+                anchors.left: mark.right
+                anchors.leftMargin: 8
+                anchors.verticalCenter: parent.verticalCenter
+                visible: !sidebar.narrow
+                text: "f1int"
+                color: Theme.fg
+                font.family: Theme.dotFont
+                font.pixelSize: Theme.px(17)
+                font.weight: Font.Black
+            }
+            IconButton {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                visible: !sidebar.narrow
+                iconName: "sidebar"
+                iconColor: Theme.dim
+                tip: sidebar.collapsed ? qsTr("Keep the tab bar open (Ctrl+Shift+S)") : qsTr("Collapse the tab bar (Ctrl+Shift+S)")
+                onClicked: sidebar.toggle()
+            }
+            MouseArea {   // narrow: click the logo to open the bar again
+                anchors.fill: parent
+                visible: sidebar.narrow
+                cursorShape: Qt.PointingHandCursor
+                onClicked: sidebar.toggle()
+                ToolTip.visible: containsMouse
+                ToolTip.text: qsTr("Open the tab bar (Ctrl+Shift+S)")
+                hoverEnabled: true
+            }
+        }
 
         Item {
             id: slot
-            visible: sidebar.hasToolbar && !sidebar.collapsed
+            visible: sidebar.hasToolbar && !sidebar.narrow
             Layout.fillWidth: true
             Layout.preferredHeight: visible ? 82 : 0
         }
 
-        // ---- Search open tabs (opened from the footer) ----
-        RowLayout {
+        // ---- Search open tabs ----
+        TextField {
+            id: search
+            visible: (sidebar.searchOpen || text !== "") && !sidebar.narrow
             Layout.fillWidth: true
-            spacing: 4
-            visible: (sidebar.searchOpen || search.text !== "") && !sidebar.narrow
-            TextField {
-                id: search
-                visible: !sidebar.narrow
-                Layout.fillWidth: true
-                implicitHeight: Theme.rowHeight
-                leftPadding: 32
-                placeholderText: Theme.showTabCount ? (sidebar.tabs.count === 1 ? qsTr("Search 1 tab") : qsTr("Search %1 tabs").arg(sidebar.tabs.count)) : qsTr("Search tabs")
-                placeholderTextColor: Theme.dim
-                color: Theme.fg
-                font.pixelSize: Theme.px(13)
-                selectByMouse: true
-                selectionColor: Theme.accent
-                selectedTextColor: Theme.textOnAccent
-                Accessible.name: qsTr("Search open tabs")
-                background: Rectangle {
-                    radius: Theme.radius
-                    color: Theme.field
-                    border.width: search.activeFocus ? 1 : 0
-                    border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55)
-                }
-                Icon {
-                    x: 11
-                    anchors.verticalCenter: parent.verticalCenter
-                    glyph: "search"
-                    sourceSize: Qt.size(14, 14)
-                    color: Theme.dim
-                }
-                Keys.onEscapePressed: { text = ""; focus = false; sidebar.searchOpen = false }
+            implicitHeight: Theme.rowHeight
+            leftPadding: 32
+            placeholderText: Theme.showTabCount ? (sidebar.tabs.count === 1 ? qsTr("Search 1 tab") : qsTr("Search %1 tabs").arg(sidebar.tabs.count)) : qsTr("Search tabs")
+            placeholderTextColor: Theme.dim
+            color: Theme.fg
+            font.pixelSize: Theme.px(13)
+            selectByMouse: true
+            selectionColor: Theme.accent
+            selectedTextColor: Theme.textOnAccent
+            Accessible.name: qsTr("Search open tabs")
+            background: Rectangle {
+                radius: Theme.radius
+                color: Theme.field
+                border.width: search.activeFocus ? 1 : 0
+                border.color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.6)
             }
-            Text {   // collapsed: just the number of tabs
-                visible: sidebar.narrow && Theme.showTabCount
-                Layout.fillWidth: true
-                horizontalAlignment: Text.AlignHCenter
-                text: sidebar.tabs.count
-                color: Theme.dim
-                font.family: Theme.numberFont
-                font.pixelSize: Theme.px(13)
-            }
+            Icon { x: 11; anchors.verticalCenter: parent.verticalCenter; glyph: "search"; sourceSize: Qt.size(14, 14); color: Theme.dim }
+            Keys.onEscapePressed: { text = ""; focus = false; sidebar.searchOpen = false }
+        }
+
+        // ---- Pinned sites: an icon grid ----
+        GridView {
+            id: pinned
+            Layout.fillWidth: true
+            Layout.preferredHeight: contentHeight
+            visible: Theme.showPinned && count > 0
+            interactive: false
+            cellWidth: sidebar.narrow ? width : Math.floor(width / 4)
+            cellHeight: 44
+            model: TabFilter { sourceModel: sidebar.tabs; pinned: true; text: search.text }
+            delegate: PinnedTile { tabs: sidebar.tabs; onMenuRequested: sidebar.tabMenuRequested(tabId) }
+            moveDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: Theme.anim } }
         }
 
         // ---- New tab ----
         Rectangle {
+            visible: Theme.showNewTabRow
             Layout.fillWidth: true
             Layout.preferredHeight: Theme.rowHeight
-            radius: Theme.radius
-            color: newTabHover.hovered ? Theme.hover : "transparent"
+            radius: Theme.tabRadius
+            color: newTabMouse.pressed ? Theme.press : newTabHover.hovered && Theme.hoverEffects ? Theme.hover : "transparent"
+            Behavior on color { ColorAnimation { duration: Theme.anim } }
             HoverHandler { id: newTabHover; cursorShape: Qt.PointingHandCursor }
             Accessible.role: Accessible.Button
             Accessible.name: qsTr("New tab")
-            Icon { x: 12; anchors.verticalCenter: parent.verticalCenter; glyph: "plus"; color: Theme.dim }
+            Rectangle {   // the plus sits in a small outlined square: a bit of geometry
+                x: sidebar.narrow ? (parent.width - width) / 2 : 6
+                anchors.verticalCenter: parent.verticalCenter
+                width: 22
+                height: 22
+                radius: Math.min(6, Theme.radius)
+                color: "transparent"
+                border.width: 1
+                border.color: Theme.line
+                Icon { anchors.centerIn: parent; glyph: "plus"; sourceSize: Qt.size(14, 14); color: Theme.fg }
+            }
             Text {
-                x: 38
+                x: 40
                 anchors.verticalCenter: parent.verticalCenter
                 visible: !sidebar.narrow
                 text: qsTr("New tab")
-                color: Theme.dim
+                color: Theme.fg
                 font.pixelSize: Theme.px(13)
             }
             Text {
@@ -140,33 +235,12 @@ Rectangle {
                 anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
                 visible: !sidebar.narrow && newTabHover.hovered
-                text: "Ctrl+T"
+                text: Qt.platform.os === "osx" ? "⌘T" : "Ctrl T"
                 color: Theme.dim
-                font.pixelSize: Theme.px(11)
+                font.family: Theme.numberFont
+                font.pixelSize: Theme.px(12)
             }
-            MouseArea { anchors.fill: parent; onClicked: sidebar.newTabRequested() }
-        }
-
-        // ---- Pinned tabs: icon grid ----
-        GridView {
-            id: pinned
-            Layout.fillWidth: true
-            Layout.preferredHeight: contentHeight
-            visible: count > 0
-            interactive: false
-            cellWidth: sidebar.narrow ? width : Math.floor(width / 4)
-            cellHeight: Theme.rowHeight + 10
-            model: TabFilter { sourceModel: sidebar.tabs; pinned: true; text: search.text }
-            delegate: PinnedTile { tabs: sidebar.tabs; onMenuRequested: sidebar.tabMenuRequested(tabId) }
-            moveDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: Theme.anim } }
-        }
-        Rectangle {
-            visible: pinned.count > 0
-            Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.preferredHeight: 1
-            color: Theme.line
+            MouseArea { id: newTabMouse; anchors.fill: parent; onClicked: sidebar.newTabRequested() }
         }
 
         // ---- Tabs, with group headers ----
@@ -175,7 +249,7 @@ Rectangle {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            spacing: 2
+            spacing: Theme.tabGap
             boundsBehavior: Flickable.StopAtBounds
             model: TabFilter { sourceModel: sidebar.tabs; pinned: false; text: search.text }
             section.property: "groupKey"
@@ -210,18 +284,26 @@ Rectangle {
             id: nowPlaying
             visible: sidebar.media !== null && !sidebar.narrow
             Layout.fillWidth: true
-            Layout.leftMargin: 4
-            Layout.rightMargin: 4
-            implicitHeight: 52
+            implicitHeight: 54
             radius: Theme.radius
             color: Theme.field
             readonly property var m: sidebar.media || ({})
+            Rectangle {   // a small accent bar while it plays
+                x: 0
+                width: 3
+                height: parent.height * 0.5
+                anchors.verticalCenter: parent.verticalCenter
+                radius: 1.5
+                color: Theme.accent2
+                visible: nowPlaying.m.playing === true
+            }
             Image {
                 id: mediaIcon
-                x: 10
+                x: 12
                 anchors.verticalCenter: parent.verticalCenter
                 width: 16
                 height: 16
+                sourceSize: Qt.size(16, 16)
                 source: nowPlaying.m.icon || ""
             }
             Column {
@@ -278,15 +360,47 @@ Rectangle {
             }
         }
 
-        // ---- Footer: quick buttons and (optionally) f1int's RAM use ----
+        // ---- Footer: your shortcuts, and f1int's memory use ----
+        Rectangle {
+            visible: !sidebar.narrow
+            Layout.fillWidth: true
+            Layout.preferredHeight: 1
+            color: Theme.line
+        }
+        // Labels on: one row per shortcut. Labels off: a row of icons.
+        Repeater {
+            model: Theme.sidebarLabels && !sidebar.narrow ? Theme.shortcuts : []
+            Rectangle {
+                required property string modelData
+                Layout.fillWidth: true
+                Layout.preferredHeight: 32
+                radius: Theme.radius
+                color: rowHover.hovered && Theme.hoverEffects ? Theme.hover : "transparent"
+                HoverHandler { id: rowHover; cursorShape: Qt.PointingHandCursor }
+                Accessible.role: Accessible.Button
+                Accessible.name: sidebar.shortcutInfo[modelData].label
+                Icon { x: 9; anchors.verticalCenter: parent.verticalCenter; glyph: sidebar.shortcutInfo[parent.modelData].icon; sourceSize: Qt.size(Theme.iconSize, Theme.iconSize); color: Theme.dim }
+                Text { x: 38; anchors.verticalCenter: parent.verticalCenter; text: sidebar.shortcutInfo[parent.modelData].label; color: Theme.fg; font.pixelSize: Theme.px(13) }
+                MouseArea { anchors.fill: parent; onClicked: sidebar.runShortcut(parent.modelData) }
+            }
+        }
         RowLayout {
             Layout.fillWidth: true
             spacing: 2
             visible: !sidebar.narrow
-            IconButton { iconName: "key"; iconColor: Theme.dim; tip: qsTr("Passwords"); onClicked: sidebar.panelRequested("passwords") }
-            IconButton { iconName: "history"; iconColor: Theme.dim; tip: qsTr("History (Ctrl+H)"); onClicked: sidebar.panelRequested("history") }
-            IconButton { iconName: "settings"; iconColor: Theme.dim; tip: qsTr("Settings (Ctrl+,)"); onClicked: sidebar.panelRequested("settings") }
-            IconButton { iconName: "search"; iconColor: sidebar.searchOpen ? Theme.fg : Theme.dim; tip: qsTr("Search tabs (Ctrl+Shift+A)"); onClicked: sidebar.searchOpen ? (sidebar.searchOpen = false, search.text = "") : sidebar.focusSearch() }
+            Repeater {
+                model: Theme.sidebarLabels ? [] : Theme.shortcuts
+                IconButton {
+                    required property string modelData
+                    implicitWidth: Theme.iconSize + 16
+                    implicitHeight: Theme.iconSize + 16
+                    iconSize: Theme.iconSize
+                    iconName: sidebar.shortcutInfo[modelData].icon
+                    iconColor: modelData === "search" && sidebar.searchOpen ? Theme.accent : Theme.dim
+                    tip: sidebar.shortcutInfo[modelData].tip
+                    onClicked: sidebar.runShortcut(modelData)
+                }
+            }
             Item { Layout.fillWidth: true }
             Text {
                 id: ram
@@ -295,7 +409,8 @@ Rectangle {
                 text: mb + " MB"
                 color: Theme.dim
                 font.family: Theme.numberFont
-                font.pixelSize: Theme.px(12)
+                font.pixelSize: Theme.px(13)
+                font.weight: Font.Bold
                 Layout.rightMargin: 6
                 function refresh() { mb = Math.round(Browser.memoryInfo().total / 1048576) }
                 Component.onCompleted: refresh()
@@ -304,12 +419,15 @@ Rectangle {
                 ToolTip.visible: ramHover.hovered
                 ToolTip.text: qsTr("Memory used by f1int (open Memory from the menu for details)")
             }
-            IconButton {
-                iconName: "sidebar"
-                iconColor: sidebar.collapsed ? Theme.accent : Theme.dim
-                tip: sidebar.collapsed ? qsTr("Keep tab bar open (Ctrl+Shift+S)") : qsTr("Collapse tab bar (Ctrl+Shift+S)")
-                onClicked: sidebar.toggle()
-            }
+        }
+        // Narrow: just a button to open the bar again.
+        IconButton {
+            visible: sidebar.narrow
+            Layout.alignment: Qt.AlignHCenter
+            iconName: "sidebar"
+            iconColor: Theme.dim
+            tip: qsTr("Open the tab bar (Ctrl+Shift+S)")
+            onClicked: sidebar.toggle()
         }
     }
 

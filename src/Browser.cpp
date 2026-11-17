@@ -11,6 +11,7 @@
 #include <QQuickWindow>
 #include <QUuid>
 #include <QFile>
+#include <algorithm>
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -335,6 +336,72 @@ bool Browser::applyBackdrop(QQuickWindow *window, bool dark)
 #else
     Q_UNUSED(window) Q_UNUSED(dark)
     return false;   // shortcut: no macOS vibrancy yet (needs NSVisualEffectView); solid colour instead
+#endif
+}
+
+// Settings a backup carries. Window positions, the download folder and anything about the
+// password vault stay on this computer.
+static bool backedUp(const QString &key)
+{
+    static const QStringList groups = { "appearance/", "layout/", "tabs/", "sidebar/", "tabbar/", "search/", "home/",
+                                        "newtab/", "startup/", "memory/", "privacy/", "reader/", "downloads/ask" };
+    return std::any_of(groups.begin(), groups.end(), [&](const QString &g) { return key.startsWith(g); })
+        || key == QLatin1String("passwords/offer") || key == QLatin1String("passwords/autofill") || key == QLatin1String("passwords/generator");
+}
+
+QVariantMap Browser::settingsForBackup() const
+{
+    QVariantMap out;
+    for (const QString &key : m_settings.allKeys())
+        if (backedUp(key))
+            out.insert(key, m_settings.value(key));
+    return out;
+}
+
+int Browser::restoreSettings(const QVariantMap &values)
+{
+    int count = 0;
+    for (auto it = values.begin(); it != values.end(); ++it)
+        if (backedUp(it.key()) && it.value().toString().size() < 100000) {   // known keys only, nothing huge
+            m_settings.setValue(it.key(), it.value());
+            ++count;
+        }
+    m_adBlocker->enabled = setting(QStringLiteral("privacy/adblock"), true).toBool();
+    applyColorScheme();
+    ++m_settingsRevision;
+    emit settingChanged();
+    return count;
+}
+
+QString Browser::readTextFile(const QUrl &file) const
+{
+    QFile f(file.toLocalFile());
+    if (!file.isLocalFile() || f.size() > 5 * 1024 * 1024 || !f.open(QIODevice::ReadOnly))
+        return {};
+    return QString::fromUtf8(f.readAll());
+}
+
+bool Browser::writeTextFile(const QUrl &file, const QString &text) const
+{
+    QSaveFile f(file.toLocalFile());   // all or nothing: no half-written files
+    return file.isLocalFile() && f.open(QIODevice::WriteOnly) && f.write(text.toUtf8()) >= 0 && f.commit();
+}
+
+void Browser::applyFrameColors(QQuickWindow *window, const QColor &caption, const QColor &text, bool dark)
+{
+#ifdef Q_OS_WIN
+    if (!window)
+        return;
+    const HWND hwnd = HWND(window->winId());
+    const BOOL useDark = dark;
+    DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &useDark, sizeof useDark);
+    const COLORREF cap = RGB(caption.red(), caption.green(), caption.blue());
+    const COLORREF txt = RGB(text.red(), text.green(), text.blue());
+    DwmSetWindowAttribute(hwnd, 35 /* DWMWA_CAPTION_COLOR */, &cap, sizeof cap);      // ignored before Windows 11
+    DwmSetWindowAttribute(hwnd, 36 /* DWMWA_TEXT_COLOR */, &txt, sizeof txt);
+    DwmSetWindowAttribute(hwnd, 34 /* DWMWA_BORDER_COLOR */, &cap, sizeof cap);
+#else
+    Q_UNUSED(window) Q_UNUSED(caption) Q_UNUSED(text) Q_UNUSED(dark)
 #endif
 }
 

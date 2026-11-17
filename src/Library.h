@@ -39,14 +39,22 @@ public:
     // Address bar suggestions: bookmarks first, then the most visited history.
     Q_INVOKABLE QVariantList suggest(const QString &text, int limit = 6) const;
 
-    // ---- import from Chrome, Edge or Brave on this computer ----
-    // [{ browser, name, path }] for every profile found.
+    // ---- import from other browsers on this computer ----
+    // [{ browser, name, path, kind }] for every profile found (kind "chromium" or "firefox").
     Q_INVOKABLE QVariantList otherBrowserProfiles() const;
-    // Copies bookmarks and history from a profile folder. Returns { bookmarks, history }
-    // (how many were added) or { error } with a message for the user.
-    Q_INVOKABLE QVariantMap importProfile(const QString &profilePath);
-    // Where to look for other browsers' data (tests point this at a fake folder).
-    QList<QPair<QString, QString>> browserRoots;   // (browser name, "User Data" folder)
+    // Copies data from a profile folder. options: { bookmarks, history, search (bools),
+    // dryRun: count only, change nothing }. Returns { bookmarks, history, search, error }:
+    // how many were (or would be) added, the search address found, a message if something failed.
+    Q_INVOKABLE QVariantMap importProfile(const QString &profilePath, const QVariantMap &options = {});
+    // Bookmarks from an exported HTML file (every browser can make one). Returns how many were added.
+    Q_INVOKABLE int importBookmarksHtml(const QUrl &file);
+    // ---- export ----
+    Q_INVOKABLE bool exportBookmarksHtml(const QUrl &file) const;
+    // History entries [{ url, title, last_visit, visits }] back in (restoring a backup).
+    Q_INVOKABLE int addHistory(const QVariantList &entries);
+    // Where to look for other browsers' data (tests point these at fake folders).
+    QList<QPair<QString, QString>> browserRoots;   // (browser name, "User Data" folder) of Chromium browsers
+    QString firefoxRoot;                            // the folder holding Firefox's "Profiles"
 
 signals:
     void changed();

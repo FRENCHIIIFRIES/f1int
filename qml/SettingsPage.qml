@@ -1,0 +1,525 @@
+import QtQuick
+import QtQuick.Controls.Basic
+import QtQuick.Dialogs
+import QtQuick.Layouts
+import f1int
+
+// Settings as a full page over the page area: categories on the left, a search that looks
+// through every setting, the chosen category on the right. Changes apply straight away.
+Rectangle {
+    id: page
+    property string category: "general"
+    signal closeRequested()
+    signal openPanel(string name)          // passwords, customise, ...
+    signal welcomeRequested()
+    signal newTabPageRequested()
+    signal openUrl(url url)
+
+    function get(key, fallback) { void Browser.settingsRevision; return Browser.setting(key, fallback) }
+    function set(key, value) { Browser.setSetting(key, value) }
+
+    readonly property var categories: [
+        { id: "general", icon: "home", label: qsTr("General") },
+        { id: "appearance", icon: "edit", label: qsTr("Appearance") },
+        { id: "sidebar", icon: "sidebar", label: qsTr("Sidebar") },
+        { id: "tabs", icon: "window", label: qsTr("Tabs and memory") },
+        { id: "newtab", icon: "plus", label: qsTr("New tab page") },
+        { id: "privacy", icon: "shield", label: qsTr("Privacy and security") },
+        { id: "data", icon: "folder", label: qsTr("Import and backup") },
+        { id: "downloads", icon: "download", label: qsTr("Downloads") },
+        { id: "extensions", icon: "bolt", label: qsTr("Extensions") },
+        { id: "advanced", icon: "settings", label: qsTr("Advanced") }]
+
+    color: Theme.bg
+    Keys.onEscapePressed: closeRequested()
+    Component.onDestruction: Theme.settingsFilter = ""
+    MouseArea { anchors.fill: parent; acceptedButtons: Qt.AllButtons; onWheel: (w) => w.accepted = false }   // nothing reaches the page below
+
+    // ---------- categories ----------
+    Rectangle {
+        id: nav
+        width: 240
+        height: parent.height
+        color: Theme.frame
+        Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: Theme.line }
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 4
+            Text {
+                text: qsTr("Settings")
+                color: Theme.fg
+                font.pixelSize: Theme.px(22)
+                font.weight: Font.DemiBold
+                Layout.leftMargin: 6
+                Layout.topMargin: 8
+                Layout.bottomMargin: 10
+            }
+            Ui.Field {
+                id: searchField
+                Layout.fillWidth: true
+                leftPadding: 32
+                placeholderText: qsTr("Search settings")
+                onTextChanged: Theme.settingsFilter = text.trim().toLowerCase()
+                Keys.onEscapePressed: text === "" ? page.closeRequested() : text = ""
+                Icon { x: 10; anchors.verticalCenter: parent.verticalCenter; glyph: "search"; sourceSize: Qt.size(14, 14); color: Theme.dim }
+                Component.onCompleted: forceActiveFocus()
+            }
+            Item { Layout.preferredHeight: 6 }
+            Repeater {
+                model: page.categories
+                Rectangle {
+                    required property var modelData
+                    readonly property bool on: page.category === modelData.id && searchField.text === ""
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
+                    radius: Theme.radius
+                    color: on ? Theme.tab : navHover.hovered && Theme.hoverEffects ? Theme.hover : "transparent"
+                    border.width: on ? 1 : 0
+                    border.color: Theme.line
+                    Behavior on color { ColorAnimation { duration: Theme.anim } }
+                    HoverHandler { id: navHover; cursorShape: Qt.PointingHandCursor }
+                    Accessible.role: Accessible.PageTab
+                    Accessible.name: modelData.label
+                    Accessible.selected: on
+                    Rectangle {   // the open category gets a short accent bar
+                        visible: parent.on
+                        width: 3; height: 16; radius: 1.5
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: Theme.accent
+                    }
+                    Icon { x: 12; anchors.verticalCenter: parent.verticalCenter; glyph: parent.modelData.icon; color: parent.on ? Theme.fg : Theme.dim }
+                    Text {
+                        x: 40
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: parent.modelData.label
+                        color: Theme.fg
+                        font.pixelSize: Theme.px(13)
+                        font.weight: parent.on ? Font.Medium : Font.Normal
+                    }
+                    MouseArea { anchors.fill: parent; onClicked: { searchField.text = ""; page.category = parent.modelData.id; scroller.contentY = 0 } }
+                }
+            }
+            Item { Layout.fillHeight: true }
+            Row {
+                Layout.leftMargin: 6
+                spacing: 8
+                Image { source: "qrc:/logo/f1int.svg"; sourceSize: Qt.size(32, 32); width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: "f1int " + Browser.version; color: Theme.dim; font.family: Theme.numberFont; font.pixelSize: Theme.px(13); anchors.verticalCenter: parent.verticalCenter }
+            }
+        }
+    }
+
+    // ---------- the chosen category (or every match while searching) ----------
+    Flickable {
+        id: scroller
+        anchors.left: nav.right
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        contentHeight: column.implicitHeight + 80
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: ScrollBar { width: 6 }
+
+        ColumnLayout {
+            id: column
+            x: Math.max(24, (scroller.width - width) / 2)
+            y: 36
+            width: Math.min(760, scroller.width - 48)
+            spacing: 26
+            Repeater {
+                model: page.categories
+                ColumnLayout {
+                    required property var modelData
+                    visible: searchField.text !== "" || page.category === modelData.id
+                    Layout.fillWidth: true
+                    spacing: 18
+                    Text {
+                        text: parent.modelData.label
+                        color: Theme.fg
+                        font.pixelSize: Theme.px(26)
+                        font.weight: Font.DemiBold
+                        visible: searchField.text === ""
+                    }
+                    Loader {
+                        Layout.fillWidth: true
+                        active: parent.visible
+                        sourceComponent: ({ general: general, appearance: appearance, sidebar: sidebarPage, tabs: tabsPage, newtab: newtabPage,
+                                            privacy: privacy, data: dataPage, downloads: downloadsPage, extensions: extensionsPage,
+                                            advanced: advanced })[parent.modelData.id]
+                    }
+                }
+            }
+            Text {
+                visible: searchField.text !== "" && column.childrenRect.height < 40
+                text: qsTr("No settings match \"%1\"").arg(searchField.text)
+                color: Theme.dim
+                font.pixelSize: Theme.px(14)
+            }
+        }
+    }
+    IconButton {
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: 14
+        iconName: "close"
+        tip: qsTr("Close settings (Esc)")
+        onClicked: page.closeRequested()
+    }
+
+    // ---------- categories ----------
+    Component {
+        id: general
+        ColumnLayout {
+            spacing: 22
+            Ui.Section {
+                title: qsTr("Search and home")
+                Ui.SettingRow {
+                    label: qsTr("Search engine")
+                    hint: qsTr("Used when you type words in the address bar")
+                    Ui.Segmented {
+                        options: Browser.searchEngines.slice(0, 4).map(e => ({ label: e.name, value: e.template }))
+                        value: page.get("search/template", "https://www.google.com/search?q=%s")
+                        onPicked: (v) => page.set("search/template", v)
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Other search engines")
+                    Ui.Segmented {
+                        options: Browser.searchEngines.slice(4).map(e => ({ label: e.name, value: e.template }))
+                        value: page.get("search/template", "https://www.google.com/search?q=%s")
+                        onPicked: (v) => page.set("search/template", v)
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Home page")
+                    Ui.Field {
+                        width: 240
+                        text: page.get("home/url", "https://www.google.com")
+                        onEditingFinished: { const url = Browser.urlFromInput(text); if (url.toString() !== "") page.set("home/url", url) }
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("New tabs open")
+                    last: page.get("newtab/mode", "home") !== "custom"
+                    Ui.Segmented {
+                        options: [{ label: qsTr("Home page"), value: "home" }, { label: qsTr("f1int page"), value: "f1int" },
+                                  { label: qsTr("Blank"), value: "blank" }, { label: qsTr("Address"), value: "custom" }]
+                        value: page.get("newtab/mode", "home")
+                        onPicked: (v) => page.set("newtab/mode", v)
+                    }
+                }
+                Ui.SettingRow {
+                    visible: page.get("newtab/mode", "home") === "custom"
+                    label: qsTr("New tab address")
+                    last: true
+                    Ui.Field { width: 240; text: page.get("newtab/url", ""); placeholderText: "example.com"; onEditingFinished: page.set("newtab/url", text.trim()) }
+                }
+            }
+            Ui.Section {
+                title: qsTr("Starting up")
+                Ui.SettingRow {
+                    label: qsTr("Reopen your tabs")
+                    hint: qsTr("Also after a crash. Only the open tab loads; the rest wait asleep.")
+                    last: true
+                    Ui.Toggle { checked: page.get("startup/restore", true); onToggled: page.set("startup/restore", checked) }
+                }
+            }
+        }
+    }
+    Component { id: appearance; ThemeStudio {} }
+    Component {
+        id: sidebarPage
+        ColumnLayout {
+            spacing: 22
+            Ui.Section {
+                title: qsTr("Layout")
+                Ui.SettingRow {
+                    label: qsTr("Tab column")
+                    Ui.Segmented {
+                        options: [{ label: qsTr("Left"), value: "left" }, { label: qsTr("Right"), value: "right" }]
+                        value: page.get("layout/tabsSide", "left")
+                        onPicked: (v) => page.set("layout/tabsSide", v)
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Address bar")
+                    Ui.Segmented {
+                        options: [{ label: qsTr("Above the page"), value: "page" }, { label: qsTr("Across the window"), value: "window" }, { label: qsTr("In the tab column"), value: "sidebar" }]
+                        value: Theme.addressPlace
+                        onPicked: (v) => page.set("layout/address", v)
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Width")
+                    Ui.Slide { width: 160; from: 200; to: 440; value: Number(page.get("tabbar/width", 260)); onMoved: page.set("tabbar/width", Math.round(value)) }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Depth")
+                    hint: qsTr("How much darker than the window it is")
+                    last: true
+                    Ui.Slide { width: 160; from: -1; to: 1; value: Theme.sidebarDepth; onMoved: page.set("sidebar/depth", Math.round(value * 10) / 10) }
+                }
+            }
+            Ui.Section {
+                title: qsTr("What it shows")
+                Ui.SettingRow { label: qsTr("Pinned sites"); Ui.Toggle { checked: Theme.showPinned; onToggled: page.set("sidebar/pinned", checked) } }
+                Ui.SettingRow { label: qsTr("New tab button"); Ui.Toggle { checked: Theme.showNewTabRow; onToggled: page.set("sidebar/newTabRow", checked) } }
+                Ui.SettingRow { label: qsTr("Number of tabs"); hint: qsTr("In the tab search box"); Ui.Toggle { checked: Theme.showTabCount; onToggled: page.set("layout/showTabCount", checked) } }
+                Ui.SettingRow { label: qsTr("Memory use"); last: true; Ui.Toggle { checked: Theme.showRam; onToggled: page.set("layout/showRam", checked) } }
+            }
+            Ui.Section {
+                title: qsTr("Shortcuts at the bottom")
+                Ui.SettingRow {
+                    label: qsTr("Labels")
+                    hint: qsTr("Show names next to the icons")
+                    Ui.Toggle { checked: Theme.sidebarLabels; onToggled: page.set("sidebar/labels", checked) }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Icon size")
+                    Ui.Segmented {
+                        options: [{ label: qsTr("Small"), value: 14 }, { label: qsTr("Medium"), value: 16 }, { label: qsTr("Large"), value: 20 }]
+                        value: Theme.iconSize
+                        onPicked: (v) => page.set("sidebar/iconSize", v)
+                    }
+                }
+                // One row per shortcut: show or hide it, move it up or down.
+                Repeater {
+                    model: Theme.allShortcuts
+                    Ui.SettingRow {
+                        id: shortcutRow
+                        required property string modelData
+                        readonly property int at: Theme.shortcuts.indexOf(modelData)
+                        function store(list) { page.set("sidebar/shortcuts", JSON.stringify(list)) }
+                        label: ({ bookmarks: qsTr("Bookmarks"), history: qsTr("History"), downloads: qsTr("Downloads"), passwords: qsTr("Passwords"),
+                                  search: qsTr("Search tabs"), settings: qsTr("Settings") })[modelData]
+                        last: modelData === "settings"
+                        Row {
+                            spacing: 4
+                            IconButton {
+                                enabled: shortcutRow.at > 0
+                                iconName: "up"; iconSize: 14; tip: qsTr("Move up")
+                                onClicked: { const l = Theme.shortcuts.slice(); l.splice(shortcutRow.at, 1); l.splice(shortcutRow.at - 1, 0, shortcutRow.modelData); shortcutRow.store(l) }
+                            }
+                            IconButton {
+                                enabled: shortcutRow.at >= 0 && shortcutRow.at < Theme.shortcuts.length - 1
+                                iconName: "down"; iconSize: 14; tip: qsTr("Move down")
+                                onClicked: { const l = Theme.shortcuts.slice(); l.splice(shortcutRow.at, 1); l.splice(shortcutRow.at + 1, 0, shortcutRow.modelData); shortcutRow.store(l) }
+                            }
+                            Ui.Toggle {
+                                checked: shortcutRow.at >= 0
+                                onToggled: shortcutRow.store(checked ? Theme.shortcuts.concat([shortcutRow.modelData]) : Theme.shortcuts.filter(s => s !== shortcutRow.modelData))
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Component {
+        id: tabsPage
+        ColumnLayout {
+            spacing: 22
+            Ui.Section {
+                title: qsTr("Tabs")
+                Ui.SettingRow {
+                    label: qsTr("Open tab style")
+                    Ui.Segmented {
+                        options: [{ label: qsTr("Pill"), value: "pill" }, { label: qsTr("Square"), value: "square" }, { label: qsTr("Line"), value: "line" }]
+                        value: Theme.tabStyle
+                        onPicked: (v) => page.set("tabs/style", v)
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Tab height")
+                    Row {
+                        spacing: 10
+                        Ui.Slide { width: 140; from: 26; to: 44; stepSize: 1; value: Theme.rowHeight; onMoved: page.set("tabs/height", value) }
+                        Text { text: Theme.rowHeight + " px"; color: Theme.dim; font.family: Theme.numberFont; font.pixelSize: Theme.px(12); anchors.verticalCenter: parent.verticalCenter }
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Space between tabs")
+                    last: true
+                    Ui.Segmented {
+                        options: [{ label: qsTr("None"), value: 0 }, { label: qsTr("Small"), value: 2 }, { label: qsTr("Large"), value: 6 }]
+                        value: Theme.tabGap
+                        onPicked: (v) => page.set("tabs/gap", v)
+                    }
+                }
+            }
+            Ui.Section {
+                title: qsTr("Memory saver")
+                Ui.SettingRow {
+                    label: qsTr("Put unused tabs to sleep")
+                    hint: qsTr("Tabs playing sound or with unsent forms stay awake.")
+                    Ui.Segmented {
+                        options: [{ label: qsTr("Off"), value: "off" }, { label: qsTr("Balanced"), value: "balanced" }, { label: qsTr("Max"), value: "max" }]
+                        value: page.get("memory/saver", "balanced")
+                        onPicked: (v) => page.set("memory/saver", v)
+                    }
+                }
+                Ui.SettingRow {
+                    visible: page.get("memory/saver", "balanced") === "balanced"
+                    label: qsTr("Freeze after")
+                    hint: qsTr("A frozen tab keeps its page but stops running")
+                    Ui.Segmented {
+                        options: [1, 2, 5, 10].map(m => ({ label: m + " min", value: m }))
+                        value: Number(page.get("memory/freezeMinutes", 2))
+                        onPicked: (v) => page.set("memory/freezeMinutes", v)
+                    }
+                }
+                Ui.SettingRow {
+                    visible: page.get("memory/saver", "balanced") === "balanced"
+                    label: qsTr("Sleep after")
+                    hint: qsTr("A sleeping tab frees its memory and reloads when you click it")
+                    last: true
+                    Ui.Segmented {
+                        options: [5, 10, 30, 60].map(m => ({ label: m + " min", value: m }))
+                        value: Number(page.get("memory/discardMinutes", 10))
+                        onPicked: (v) => page.set("memory/discardMinutes", v)
+                    }
+                }
+            }
+        }
+    }
+    Component {
+        id: newtabPage
+        ColumnLayout {
+            spacing: 22
+            Ui.Section {
+                title: qsTr("f1int's new tab page")
+                Ui.SettingRow {
+                    label: qsTr("Use it for new tabs")
+                    hint: qsTr("Otherwise new tabs open your home page")
+                    Ui.Toggle { checked: page.get("newtab/mode", "home") === "f1int"; onToggled: page.set("newtab/mode", checked ? "f1int" : "home") }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Widgets, picture and layout")
+                    hint: qsTr("Clock, search, shortcuts, notes, to-do, weather and your background")
+                    last: true
+                    Ui.Pill { text: qsTr("Customise"); onClicked: page.newTabPageRequested() }
+                }
+            }
+        }
+    }
+    Component {
+        id: privacy
+        ColumnLayout {
+            spacing: 22
+            Ui.Section {
+                title: qsTr("Blocking and clearing")
+                Ui.SettingRow {
+                    label: qsTr("Block ads and trackers")
+                    hint: qsTr("%1 requests blocked since start. Lists update weekly from easylist.to.").arg(Browser.blockedTotal)
+                    Ui.Toggle { checked: page.get("privacy/adblock", true); onToggled: page.set("privacy/adblock", checked) }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Clear browsing data on exit")
+                    hint: qsTr("History, cookies, cache and open tabs. Bookmarks are kept.")
+                    Ui.Toggle { checked: page.get("privacy/clearOnExit", false); onToggled: page.set("privacy/clearOnExit", checked) }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Clear browsing data now")
+                    hint: qsTr("Signs you out of websites")
+                    last: true
+                    Ui.Pill { text: qsTr("Clear"); onClicked: { Browser.clearBrowsingData(); text = qsTr("Cleared") } }
+                }
+            }
+            Ui.Section {
+                title: qsTr("Passwords")
+                Ui.SettingRow { label: qsTr("Offer to save passwords"); Ui.Toggle { checked: page.get("passwords/offer", true); onToggled: page.set("passwords/offer", checked) } }
+                Ui.SettingRow { label: qsTr("Fill in saved passwords"); Ui.Toggle { checked: page.get("passwords/autofill", true); onToggled: page.set("passwords/autofill", checked) } }
+                Ui.SettingRow { label: qsTr("Suggest strong passwords on sign-up forms"); Ui.Toggle { checked: page.get("passwords/generator", true); onToggled: page.set("passwords/generator", checked) } }
+                Ui.SettingRow {
+                    label: qsTr("Lock passwords after")
+                    hint: qsTr("Minutes without using them")
+                    Ui.Segmented {
+                        options: [{ label: "5", value: 5 }, { label: "15", value: 15 }, { label: "60", value: 60 }, { label: qsTr("Never"), value: 0 }]
+                        value: Number(page.get("passwords/autoLockMinutes", 15))
+                        onPicked: (v) => page.set("passwords/autoLockMinutes", v)
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Saved passwords")
+                    hint: qsTr("Encrypted on this computer (AES-256), never sent anywhere")
+                    last: true
+                    Ui.Pill { text: qsTr("Open"); onClicked: page.openPanel("passwords") }
+                }
+            }
+            Ui.Section {
+                title: qsTr("What f1int sends")
+                Ui.SettingRow {
+                    label: qsTr("No telemetry")
+                    hint: qsTr("f1int sends nothing about you. It only fetches the ad-block lists from easylist.to once a week.")
+                    last: true
+                }
+            }
+        }
+    }
+    Component {
+        id: dataPage
+        ImportExport { onOpenPasswords: page.openPanel("passwords") }
+    }
+    Component {
+        id: downloadsPage
+        ColumnLayout {
+            spacing: 22
+            Ui.Section {
+                title: qsTr("Saving files")
+                Ui.SettingRow {
+                    label: qsTr("Save files to")
+                    hint: Browser.profile.downloadPath
+                    Ui.Pill { text: qsTr("Change…"); onClicked: folderDialog.open() }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Ask where to save each file")
+                    last: true
+                    Ui.Toggle { checked: page.get("downloads/ask", false); onToggled: page.set("downloads/ask", checked) }
+                }
+            }
+            FolderDialog {
+                id: folderDialog
+                onAccepted: { const p = Browser.localPath(selectedFolder); Browser.profile.downloadPath = p; page.set("downloads/path", p) }
+            }
+        }
+    }
+    Component {
+        id: extensionsPage
+        Extensions { onOpenUrl: (u) => page.openUrl(u) }
+    }
+    Component {
+        id: advanced
+        ColumnLayout {
+            spacing: 22
+            Ui.Section {
+                title: qsTr("Getting started")
+                Ui.SettingRow {
+                    label: qsTr("Welcome tour")
+                    hint: qsTr("The intro, importing from other browsers and the first choices")
+                    last: true
+                    Ui.Pill { text: qsTr("Show"); onClicked: page.welcomeRequested() }
+                }
+            }
+            Ui.Section {
+                title: qsTr("How f1int saves memory")
+                Ui.SettingRow {
+                    label: qsTr("Chromium settings")
+                    hint: qsTr("Pages from the same site share one process, at most 6 page processes run, and the back-forward cache is off, so memory stays low. Set F1INT_NO_FLAGS=1 to start without them.")
+                    last: true
+                }
+            }
+            Ui.Section {
+                title: qsTr("About")
+                Ui.SettingRow {
+                    label: "f1int " + Browser.version
+                    hint: qsTr("Free and open source (MIT). Built on Qt (LGPL) and Chromium. No telemetry.")
+                    last: true
+                    Image { source: "qrc:/logo/f1int.svg"; sourceSize: Qt.size(64, 64); width: 32; height: 32 }
+                }
+            }
+        }
+    }
+}

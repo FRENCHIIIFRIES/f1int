@@ -28,7 +28,7 @@ ApplicationWindow {
     width: 1280
     height: 820
     visible: true
-    color: Theme.chrome   // see-through: Windows draws frosted glass behind
+    color: Theme.chrome   // the frame around the page (see-through only with frosted glass on)
     title: (view && view.title ? view.title : qsTr("New tab")) + (incognito ? " – f1int Incognito" : " – f1int")
     palette.toolTipBase: Theme.surface
     palette.toolTipText: Theme.fg
@@ -104,6 +104,10 @@ ApplicationWindow {
         return last
     }
     function showPanel(name) { panel = panel === name ? "" : name }
+    function showSettings(category) {   // open settings at a category (after it has loaded)
+        panel = "settings"
+        Qt.callLater(() => { const p = pageArea.children.find(c => c.item && c.item.category !== undefined); if (p) p.item.category = category })
+    }
 
     // ---------- passwords ----------
     property var savePrompt: null       // { url, username, password, kind } after a login was sent
@@ -231,10 +235,34 @@ ApplicationWindow {
             // first window to see it takes it, the others skip it once it's accepted.
             if (download.state !== WebEngineDownloadRequest.DownloadRequested)
                 return
+            if (window.setting("downloads/ask", false)) {
+                // Ask where to save: only the window whose page started it shows the dialog.
+                const mine = download.view ? Object.values(window.pages).indexOf(download.view) >= 0 : window.active
+                if (!mine) return
+                saveAsDialog.download = download
+                saveAsDialog.currentFile = "file:///" + download.downloadDirectory + "/" + download.downloadFileName
+                saveAsDialog.open()
+                return
+            }
             download.accept()
             window.downloads = [download].concat(window.downloads)
             window.panel = "downloads"
         }
+    }
+
+    FileDialog {
+        id: saveAsDialog
+        property var download: null
+        fileMode: FileDialog.SaveFile
+        onAccepted: {
+            const path = Browser.localPath(selectedFile)
+            download.downloadDirectory = path.substring(0, path.lastIndexOf("/"))
+            download.downloadFileName = path.substring(path.lastIndexOf("/") + 1)
+            download.accept()
+            window.downloads = [download].concat(window.downloads)
+            window.panel = "downloads"
+        }
+        onRejected: download.cancel()
     }
 
     onClosing: {
@@ -249,6 +277,9 @@ ApplicationWindow {
 
     Component.onCompleted: {
         applyGlass()
+        applyFrame()
+        const downloadsTo = String(setting("downloads/path", ""))
+        if (downloadsTo !== "" && !incognito) profile.downloadPath = downloadsTo
         // Remember when the user types into a form, so memory saver leaves that tab awake.
         // Runs in a separate script world: pages can't see or change it.
         if (profile.userScripts.find("f1int-edit-tracker").length === 0) {
@@ -283,7 +314,7 @@ ApplicationWindow {
         if (Browser.uiTestScript.toString() !== "") {
             const test = Qt.createComponent(Browser.uiTestScript)
             if (test.status === Component.Error) console.warn("UI test failed to load: " + test.errorString())
-            else test.createObject(window, { win: window })
+            else if (!test.createObject(window, { win: window })) console.warn("UI test couldn't start: " + test.errorString())
         }
     }
     // ---------- media: the "now playing" card in the tab bar and the pop-out video ----------
@@ -396,6 +427,24 @@ ApplicationWindow {
     function flash(text) { flashText.text = text; flashBox.opacity = 1; flashTimer.restart() }
     Timer { id: flashTimer; interval: 2600; onTriggered: flashBox.opacity = 0 }
 
+    // ---------- bookmarks bar (under the address bar) ----------
+    readonly property int bookmarksBarHeight: Theme.showBookmarksBar && !incognito && !fullScreen ? 32 : 0
+    BookmarksBar {
+        parent: Theme.addressPlace === "window" ? windowBar : topBar
+        visible: window.bookmarksBarHeight > 0
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 1
+        height: 31
+        onOpen: (url, background) => background ? window.newTab(url, true) : (window.view ? window.view.url = url : window.newTab(url))
+    }
+    Shortcut { sequence: "Ctrl+Shift+B"; onActivated: Browser.setSetting("layout/bookmarksBar", !Theme.showBookmarksBar) }
+
+    // The Windows title bar takes the tab column's colour, so the window reads as one piece.
+    function applyFrame() { Browser.applyFrameColors(window, Theme.sidebar, Theme.fg, Theme.dark) }
+    Connections { target: Theme; function onSidebarChanged() { window.applyFrame() } }
+
     // First run: the welcome intro over everything (not in incognito or UI tests).
     property bool showWelcome: !incognito && Browser.uiTestScript.toString() === "" && !Browser.setting("welcome/done", false)
     Loader {
@@ -408,6 +457,7 @@ ApplicationWindow {
 
     // For UI test scripts: reach the menus and panels by name.
     property alias sidebarItem: sidebar
+    property alias pageAreaItem: pageArea
     property alias tabMenuItem: tabMenu
     property alias groupPopupItem: groupPopup
     property alias mainMenuItem: mainMenu
@@ -441,7 +491,8 @@ ApplicationWindow {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: Theme.addressPlace === "window" && !window.fullScreen ? 50 : 0
+        height: Theme.addressPlace === "window" && !window.fullScreen ? 46 + window.bookmarksBarHeight : 0
+        Rectangle { anchors.fill: parent; color: Theme.toolbar; visible: parent.height > 0 }
         Rectangle {   // a thin line separates the bar from the tabs and the page below
             anchors.bottom: parent.bottom
             width: parent.width
@@ -478,18 +529,18 @@ ApplicationWindow {
         anchors.top: windowBar.bottom
         anchors.bottom: parent.bottom
         // Room for the tab bar on its side, and a gap around the page card (none in full screen).
-        anchors.leftMargin: window.fullScreen ? 0 : Theme.tabsOnRight ? Theme.inset : sidebar.reservedWidth
-        anchors.rightMargin: window.fullScreen ? 0 : Theme.tabsOnRight ? sidebar.reservedWidth : Theme.inset
-        anchors.bottomMargin: window.fullScreen ? 0 : Theme.inset
-        anchors.topMargin: window.fullScreen || window.toolbarOnTop ? 0 : Theme.inset
+        anchors.leftMargin: window.fullScreen || Theme.tabsOnRight ? 0 : sidebar.reservedWidth
+        anchors.rightMargin: window.fullScreen || !Theme.tabsOnRight ? 0 : sidebar.reservedWidth
         spacing: 0
 
         // The toolbar sits here, above the page, only while the tab bar is collapsed.
-        Item {
+        Rectangle {
             id: topBar
-            visible: window.toolbarOnTop && !window.fullScreen
+            visible: (window.toolbarOnTop || window.bookmarksBarHeight > 0) && Theme.addressPlace !== "window" && !window.fullScreen
             Layout.fillWidth: true
-            Layout.preferredHeight: visible ? 46 : 0
+            Layout.preferredHeight: visible ? (window.toolbarOnTop ? 46 : 0) + window.bookmarksBarHeight : 0
+            color: Theme.toolbar
+            Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
         }
 
         // ---- The page card: rounded corners, solid background, sits on the glass ----
@@ -497,13 +548,7 @@ ApplicationWindow {
             id: card
             Layout.fillWidth: true
             Layout.fillHeight: true
-            layer.enabled: !window.fullScreen
-            layer.effect: MultiEffect {   // rounds the corners of everything inside
-                maskEnabled: true
-                maskSource: cardMask
-                maskThresholdMin: 0.5
-                maskSpreadAtMin: 1.0
-            }
+            Layout.margins: window.fullScreen ? 0 : Theme.inset
             Rectangle {   // background; see-through for the new tab page so the glass shows
                 anchors.fill: parent
                 color: window.showNewTabPage ? "transparent" : Theme.bg
@@ -595,15 +640,35 @@ ApplicationWindow {
                         sourceComponent: NewTabPage { view: window.view; incognito: window.incognito }
                     }
 
-                    // Side panel on the right: bookmarks / history / downloads, settings, memory.
+                    // Settings: a full page over the page area.
+                    Loader {
+                        z: 7
+                        anchors.fill: parent
+                        active: window.panel === "settings"
+                        sourceComponent: SettingsPage {
+                            focus: true
+                            onCloseRequested: window.panel = ""
+                            onOpenPanel: (name) => window.panel = name
+                            onWelcomeRequested: { window.panel = ""; window.showWelcome = true }
+                            onOpenUrl: (u) => { window.panel = ""; window.newTab(u) }
+                            onNewTabPageRequested: {
+                                window.panel = ""
+                                Browser.setSetting("newtab/mode", "f1int")
+                                window.openNewTab()
+                                Qt.callLater(() => { if (newTabPage.item) newTabPage.item.openCustomise() })
+                            }
+                        }
+                        onLoaded: item.forceActiveFocus()
+                    }
+                    // Side panel on the right: bookmarks / history / downloads, customise, memory, passwords.
                     Loader {
                         z: 6
-                        active: window.panel !== ""
+                        active: window.panel !== "" && window.panel !== "settings"
                         anchors.right: parent.right
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
                         width: Math.min(400, parent.width - 40)
-                        sourceComponent: window.panel === "settings" ? settingsPanel
+                        sourceComponent: window.panel === "customise" ? settingsPanel
                                        : window.panel === "memory" ? memoryPanel
                                        : window.panel === "passwords" ? passwordsPanel : libraryPanel
                     }
@@ -654,22 +719,47 @@ ApplicationWindow {
                 visible: width > 0
                 Behavior on width { NumberAnimation { duration: Theme.anim } }
             }
+            // Rounded corners: frame-coloured caps drawn over the page's square corners
+            // (much cheaper than masking a live web page), plus a hairline edge.
+            Repeater {
+                model: window.fullScreen || Theme.inset === 0 ? 0 : 4
+                Canvas {
+                    required property int index
+                    readonly property int r: Theme.cardRadius
+                    z: 20
+                    width: r
+                    height: r
+                    x: index % 2 ? card.width - r : 0
+                    y: index > 1 ? card.height - r : 0
+                    onPaint: {   // fill the square, then cut out the circle around the card's inner corner
+                        const c = getContext("2d"); c.reset()
+                        c.fillStyle = Theme.chrome; c.fillRect(0, 0, r, r)
+                        c.globalCompositeOperation = "destination-out"
+                        c.beginPath(); c.arc(index % 2 ? 0 : r, index > 1 ? 0 : r, r, 0, 2 * Math.PI); c.fill()
+                    }
+                    Connections { target: Theme; function onChromeChanged() { requestPaint() } function onCardRadiusChanged() { requestPaint() } }
+                }
+            }
+            Rectangle {
+                z: 21
+                anchors.fill: parent
+                visible: !window.fullScreen
+                radius: Theme.cardRadius
+                color: "transparent"
+                border.width: 1
+                border.color: Theme.line
+            }
         }
-    }
-    Rectangle {   // the card's shape, used as a mask (not drawn)
-        id: cardMask
-        width: card.width
-        height: card.height
-        radius: Theme.cardRadius
-        visible: false
-        layer.enabled: true
     }
 
     // The toolbar: at the top of the tab bar (stacked), or above the page when the bar is collapsed.
     Toolbar {
         id: toolbar
         parent: Theme.addressPlace === "window" ? windowBar : window.toolbarOnTop ? topBar : sidebar.toolbarSlot
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: implicitHeight
         stacked: parent === sidebar.toolbarSlot   // two rows only inside the tab bar
         visible: !window.fullScreen
         view: window.view
@@ -693,7 +783,7 @@ ApplicationWindow {
             onCloseRequested: window.panel = ""
         }
     }
-    Component { id: settingsPanel; SettingsPanel { onCloseRequested: window.panel = ""; onOpenPasswordsRequested: window.panel = "passwords" } }
+    Component { id: settingsPanel; SettingsPanel { onCloseRequested: window.panel = ""; onStudioRequested: window.showSettings("appearance") } }
     Component { id: passwordsPanel; PasswordsPanel { onCloseRequested: { window.panel = ""; window.pendingAction = null } } }
 
     // A small card with a question and buttons (the password prompts).
@@ -778,6 +868,7 @@ ApplicationWindow {
         Action { text: window.fullScreen ? qsTr("Exit full screen") : qsTr("Full screen"); onTriggered: window.toggleFullScreen() }
         Separator {}
         Action { text: qsTr("Memory"); onTriggered: window.showPanel("memory") }
+        Action { text: qsTr("Customise"); onTriggered: window.showPanel("customise") }
         Action { text: qsTr("Settings"); onTriggered: window.showPanel("settings") }
         Action { text: qsTr("Welcome tour"); onTriggered: window.showWelcome = true }
         Action { text: qsTr("Developer tools"); enabled: window.view !== null; onTriggered: window.openDevTools() }
