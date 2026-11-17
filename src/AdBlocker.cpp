@@ -53,8 +53,24 @@ bool AdBlocker::blocks(const QString &host, const QString &pageHost) const
     return site(host) != site(pageHost) && matches(m_blockThirdParty, host);
 }
 
+bool AdBlocker::isGoogleSignIn(const QUrl &url)
+{
+    const QString host = url.host().toLower();
+    return url.scheme() == QLatin1String("https")
+           && (host == QLatin1String("accounts.google.com") || host == QLatin1String("accounts.youtube.com"));
+}
+
+QByteArray AdBlocker::userAgentFor(const QUrl &request, const QUrl &page) const
+{
+    // The sign-in page and everything it loads (scripts from gstatic.com etc.) say the same thing.
+    return isGoogleSignIn(request) || isGoogleSignIn(page) ? engineUserAgent : QByteArray();
+}
+
 void AdBlocker::interceptRequest(QWebEngineUrlRequestInfo &info)
 {
+    const QByteArray agent = userAgentFor(info.requestUrl(), info.firstPartyUrl());
+    if (!agent.isEmpty())
+        info.setHttpHeader(QByteArrayLiteral("User-Agent"), agent);
     const QString pageHost = info.firstPartyUrl().host();
     const qint64 now = m_clock.elapsed();
     if (now - m_lastActivity.value(pageHost, -1000) > 250) {
