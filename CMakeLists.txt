@@ -103,6 +103,8 @@ qt_add_resources(f1int assets
     BASE resources
     FILES ${icon_files} resources/logo/f1int.svg resources/fonts/Doto.ttf resources/filters/builtin.txt
           resources/scripts/passwords.js
+          resources/scripts/media.js
+          resources/scripts/reader.js
 )
 
 # Dynamic linking (the default) keeps us within Qt's LGPL licence.

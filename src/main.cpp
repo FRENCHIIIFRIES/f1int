@@ -33,8 +33,11 @@ int main(int argc, char *argv[])
     // These names decide where settings and the browser profile are stored on disk.
     QCoreApplication::setOrganizationName(QStringLiteral("f1int"));
     // UI test runs get their own data folder and settings, so they never touch the user's.
-    QCoreApplication::setApplicationName(qEnvironmentVariableIsSet("F1INT_UI_TEST") ? QStringLiteral("f1int-test")
-                                                                                    : QStringLiteral("f1int"));
+    // F1INT_TEST_NAME lets several test runs work side by side (each "f1int-test-…").
+    const QString testName = qEnvironmentVariable("F1INT_TEST_NAME");
+    QCoreApplication::setApplicationName(!qEnvironmentVariableIsSet("F1INT_UI_TEST") ? QStringLiteral("f1int")
+                                         : testName.startsWith(QLatin1String("f1int-test")) ? testName
+                                                                                           : QStringLiteral("f1int-test"));
 
     applyChromiumFlags();
     QtWebEngineQuick::initialize();   // must come before the app object is created

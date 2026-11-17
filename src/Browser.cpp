@@ -292,7 +292,15 @@ void Browser::loadFilterLists()
 
 QString Browser::passwordScript() const
 {
-    QFile f(QStringLiteral(":/scripts/passwords.js"));
+    return script(QStringLiteral("passwords"));
+}
+
+QString Browser::script(const QString &name) const
+{
+    static const QRegularExpression plain(QStringLiteral("^[a-z]+$"));   // only our own files
+    if (!plain.match(name).hasMatch())
+        return {};
+    QFile f(QStringLiteral(":/scripts/%1.js").arg(name));
     if (!f.open(QIODevice::ReadOnly))
         return {};
     return QString::fromUtf8(f.readAll()).replace(QLatin1String("%NONCE%"), m_nonce);

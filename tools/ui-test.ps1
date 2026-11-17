@@ -4,7 +4,8 @@
 param([string]$Script = "$PSScriptRoot\..\tests\ui\tabbar.qml",
       [string[]]$Urls = @('https://www.wikipedia.org', 'https://github.com', 'https://news.ycombinator.com', 'https://www.bbc.co.uk'),
       [int]$Timeout = 90,
-      [switch]$Screen)   # capture the screen (shows the frosted glass) instead of the window's own drawing
+      [switch]$Screen,
+      [string]$Name = 'f1int-test')   # test profile name; must start with "f1int-test" (use your own to run tests side by side)   # capture the screen (shows the frosted glass) instead of the window's own drawing
 $ErrorActionPreference = 'Stop'
 # "powershell -File" hands a list over as one "a,b,c" string: split it back into URLs.
 $Urls = @($Urls | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
@@ -23,8 +24,10 @@ public static class Shot {
 [void][Shot]::SetProcessDPIAware()
 
 # Start from an empty test profile each time (only the "f1int-test" folders/settings, never the real ones).
-Remove-Item "$env:APPDATA\f1int\f1int-test", "$env:LOCALAPPDATA\f1int\f1int-test" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item 'HKCU:\Software\f1int\f1int-test' -Recurse -Force -ErrorAction SilentlyContinue
+if (-not $Name.StartsWith('f1int-test')) { throw "-Name must start with f1int-test" }
+$env:F1INT_TEST_NAME = $Name
+Remove-Item "$env:APPDATA\f1int\$Name", "$env:LOCALAPPDATA\f1int\$Name" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "HKCU:\Software\f1int\$Name" -Recurse -Force -ErrorAction SilentlyContinue
 
 $out = New-Item -ItemType Directory -Force "$PSScriptRoot\..\build\ui-shots"
 $log = Join-Path $out 'app.log'

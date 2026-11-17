@@ -53,6 +53,8 @@ public:
     PasswordVault *passwords() const { return m_vault; }
     QString passwordMessagePrefix() const { return QStringLiteral("f1int:") + m_nonce + QLatin1Char(':'); }
     QString passwordScript() const;
+    // A page helper from resources/scripts (media, reader), with the message secret filled in.
+    Q_INVOKABLE QString script(const QString &name) const;
 
     // Windows Hello / Touch ID. `purpose` "unlock" opens the vault; "verify" re-confirms it's
     // you (to show a password). The answer comes back through deviceAuthFinished.

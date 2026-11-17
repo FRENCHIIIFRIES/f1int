@@ -98,7 +98,7 @@ Rectangle {
             Layout.rightMargin: bar.stacked ? 0 : 6
             implicitHeight: Theme.rowHeight
             leftPadding: 34
-            rightPadding: 92   // room for the activity dot, key and star
+            rightPadding: 122   // room for the activity dot, key, reading view and star
             color: Theme.fg
             placeholderText: qsTr("Search or enter address")
             placeholderTextColor: Theme.dim
@@ -154,6 +154,16 @@ Rectangle {
                     iconColor: Browser.passwords.state === "unlocked" ? Theme.fg : Theme.dim
                     tip: qsTr("Passwords for this site")
                     onClicked: bar.keyRequested(keyButton)
+                }
+                IconButton {   // reading view: just the article, in a clean layout (F9)
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    iconSize: 15
+                    visible: bar.view !== null && bar.prettyUrl(bar.view.url) !== ""
+                    iconName: "reader"
+                    iconColor: bar.view && bar.view.readerOn ? Theme.accent : Theme.dim
+                    tip: bar.view && bar.view.readerOn ? qsTr("Close reading view (F9)") : qsTr("Reading view (F9)")
+                    onClicked: bar.view.reader(!bar.view.readerOn)
                 }
                 IconButton {
                     readonly property bool starred: { void Browser.library.revision; return bar.view !== null && Browser.library.isBookmarked(bar.view.url) }

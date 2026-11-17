@@ -26,6 +26,9 @@ Rectangle {
     signal groupMenuRequested(int groupId)
     signal muteToggled(int tabId)
     signal panelRequested(string name)
+    // "Now playing": { tabId, icon, tabTitle, title, artist, playing, video, muted, poppedOut } or null.
+    property var media: null
+    signal mediaAction(string action)   // "toggle" | "mute" | "pip" | "focus"
 
     function toggle() {
         collapsed = !collapsed
@@ -199,6 +202,79 @@ Rectangle {
                 text: qsTr("No tabs match \"%1\"").arg(search.text)
                 color: Theme.dim
                 font.pixelSize: Theme.px(12)
+            }
+        }
+
+        // ---- Now playing: the tab that last played sound, with its controls ----
+        Rectangle {
+            id: nowPlaying
+            visible: sidebar.media !== null && !sidebar.narrow
+            Layout.fillWidth: true
+            Layout.leftMargin: 4
+            Layout.rightMargin: 4
+            implicitHeight: 52
+            radius: Theme.radius
+            color: Theme.field
+            readonly property var m: sidebar.media || ({})
+            Image {
+                id: mediaIcon
+                x: 10
+                anchors.verticalCenter: parent.verticalCenter
+                width: 16
+                height: 16
+                source: nowPlaying.m.icon || ""
+            }
+            Column {
+                anchors.left: mediaIcon.right
+                anchors.leftMargin: 10
+                anchors.right: mediaButtons.left
+                anchors.rightMargin: 6
+                anchors.verticalCenter: parent.verticalCenter
+                Text {
+                    width: parent.width
+                    text: nowPlaying.m.title || nowPlaying.m.tabTitle || ""
+                    color: Theme.fg
+                    font.pixelSize: Theme.px(12)
+                    font.weight: Font.Medium
+                    elide: Text.ElideRight
+                }
+                Text {
+                    width: parent.width
+                    text: nowPlaying.m.artist || (nowPlaying.m.title ? nowPlaying.m.tabTitle : qsTr("Playing in a tab"))
+                    color: Theme.dim
+                    font.pixelSize: Theme.px(11)
+                    elide: Text.ElideRight
+                }
+            }
+            MouseArea {   // click the words to go to the tab
+                anchors.left: parent.left
+                anchors.right: mediaButtons.left
+                height: parent.height
+                cursorShape: Qt.PointingHandCursor
+                onClicked: sidebar.mediaAction("focus")
+            }
+            Row {
+                id: mediaButtons
+                anchors.right: parent.right
+                anchors.rightMargin: 4
+                anchors.verticalCenter: parent.verticalCenter
+                IconButton {
+                    iconName: nowPlaying.m.playing ? "pause" : "play"
+                    tip: nowPlaying.m.playing ? qsTr("Pause") : qsTr("Play")
+                    onClicked: sidebar.mediaAction("toggle")
+                }
+                IconButton {
+                    visible: nowPlaying.m.video === true
+                    iconName: "pip"
+                    iconColor: nowPlaying.m.poppedOut ? Theme.accent : Theme.fg
+                    tip: nowPlaying.m.poppedOut ? qsTr("Put the video back") : qsTr("Pop out the video")
+                    onClicked: sidebar.mediaAction("pip")
+                }
+                IconButton {
+                    iconName: nowPlaying.m.muted ? "muted" : "speaker"
+                    tip: nowPlaying.m.muted ? qsTr("Unmute") : qsTr("Mute")
+                    onClicked: sidebar.mediaAction("mute")
+                }
             }
         }
 

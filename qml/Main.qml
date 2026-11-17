@@ -185,7 +185,7 @@ ApplicationWindow {
         for (const key in pages) {
             const page = pages[key]
             const id = Number(key)
-            if (id === tabs.currentId || page.recentlyAudible) continue
+            if (id === tabs.currentId || page.recentlyAudible || page.poppedOut) continue
             const idle = now - (lastActive[key] || now)
             let target = force || idle >= discardMs ? WebEngineView.LifecycleState.Discarded
                        : idle >= freezeMs ? WebEngineView.LifecycleState.Frozen : WebEngineView.LifecycleState.Active
@@ -217,7 +217,9 @@ ApplicationWindow {
         }
         function onTabClosed(id) {
             const page = window.pages[id]
+            if (id === window.pipTabId) window.popIn()
             if (page) { delete window.pages[id]; page.destroy() }   // frees the page's memory
+            if (id === window.mediaTabId) { window.mediaTabId = -1; window.mediaInfo = null }
             delete window.lastActive[id]
             if (window.tabs.count === 0) window.close()        // like Chrome: last tab closes the window
         }
@@ -284,6 +286,116 @@ ApplicationWindow {
             else test.createObject(window, { win: window })
         }
     }
+    // ---------- media: the "now playing" card in the tab bar and the pop-out video ----------
+    property int mediaTabId: -1        // the tab that played sound most recently
+    property var mediaInfo: null       // { playing, title, artist, video } from that page
+    property int pipTabId: -1          // the tab shown in the small video window
+    readonly property var mediaCard: {
+        if (mediaTabId < 0 || mediaInfo === null) return null
+        const tab = tabs.tab(mediaTabId)
+        return Object.assign({ tabId: mediaTabId, icon: tab.icon, tabTitle: tab.title, muted: tab.muted === true,
+                               poppedOut: pipTabId === mediaTabId }, mediaInfo)
+    }
+    function refreshMedia() {
+        const page = pages[mediaTabId]
+        if (!page || page.lifecycleState === WebEngineView.LifecycleState.Discarded) { mediaTabId = -1; mediaInfo = null; return }
+        if (page.lifecycleState !== WebEngineView.LifecycleState.Active) return   // asleep: keep what we know
+        const id = mediaTabId
+        page.media("status", (info) => { if (id !== mediaTabId) return; mediaInfo = info; if (info === null) mediaTabId = -1 })
+    }
+    function mediaAction(action) {
+        const page = pages[mediaTabId]
+        if (!page) return
+        if (action === "focus") { tabs.currentId = mediaTabId; return }
+        if (action === "mute") { setMuted(mediaTabId, !page.audioMuted); mediaInfo = Object.assign({}, mediaInfo); return }
+        if (action === "pip") { pipTabId === mediaTabId ? popIn() : popOut(mediaTabId); return }
+        page.lifecycleState = WebEngineView.LifecycleState.Active
+        page.media(action, (info) => mediaInfo = info)
+    }
+    Timer {
+        interval: 2000
+        repeat: true
+        running: window.mediaTabId >= 0 && Qt.application.state === Qt.ApplicationActive
+        onTriggered: window.refreshMedia()
+    }
+    // Pop-out video: the tab's page moves into a small window that stays on top, and the
+    // video is made to fill it. Qt WebEngine has no picture-in-picture of its own.
+    function popOut(id) {
+        const page = pages[id]
+        if (!page) return
+        if (pipTabId >= 0) popIn()
+        page.lifecycleState = WebEngineView.LifecycleState.Active
+        pipTabId = id
+        page.media("pip-on")
+        page.poppedOut = true
+        page.parent = pipWindow.contentItem
+        pipWindow.show()
+    }
+    function popIn() {
+        const page = pages[pipTabId]
+        pipTabId = -1
+        if (page) { page.media("pip-off"); page.poppedOut = false; page.parent = pageArea }
+        if (pipWindow.visible) pipWindow.hide()
+    }
+    Window {
+        id: pipWindow
+        width: 480
+        height: 270
+        minimumWidth: 240
+        minimumHeight: 135
+        x: Screen.desktopAvailableWidth - width - 24
+        y: Screen.desktopAvailableHeight - height - 24
+        flags: Qt.Window | Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint
+        color: "black"
+        title: qsTr("f1int video")
+        onClosing: window.popIn()
+        // Controls appear while the mouse is over the window.
+        Item {
+            anchors.fill: parent
+            z: 10
+            HoverHandler { id: pipHover }
+            Rectangle {
+                width: parent.width
+                height: 40
+                opacity: pipHover.hovered ? 1 : 0
+                Behavior on opacity { NumberAnimation { duration: Theme.anim } }
+                gradient: Gradient { GradientStop { position: 0; color: "#b0000000" } GradientStop { position: 1; color: "#00000000" } }
+                MouseArea { anchors.fill: parent; onPressed: pipWindow.startSystemMove() }   // drag to move
+                Row {
+                    anchors.right: parent.right
+                    anchors.rightMargin: 6
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 2
+                    IconButton {
+                        iconName: window.mediaCard && window.mediaCard.playing ? "pause" : "play"
+                        iconColor: "white"
+                        tip: qsTr("Play or pause")
+                        onClicked: window.mediaAction("toggle")
+                    }
+                    IconButton {
+                        iconName: "pip"
+                        iconColor: "white"
+                        tip: qsTr("Back to the tab")
+                        onClicked: { const id = window.pipTabId; window.popIn(); window.tabs.currentId = id; window.raise() }
+                    }
+                    IconButton { iconName: "close"; iconColor: "white"; tip: qsTr("Close"); onClicked: window.popIn() }
+                }
+            }
+            MouseArea {   // resize from the bottom-right corner
+                width: 18
+                height: 18
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                cursorShape: Qt.SizeFDiagCursor
+                onPressed: pipWindow.startSystemResize(Qt.RightEdge | Qt.BottomEdge)
+            }
+        }
+    }
+
+    // A short message at the bottom of the page (e.g. "No article found").
+    function flash(text) { flashText.text = text; flashBox.opacity = 1; flashTimer.restart() }
+    Timer { id: flashTimer; interval: 2600; onTriggered: flashBox.opacity = 0 }
+
     // First run: the welcome intro over everything (not in incognito or UI tests).
     property bool showWelcome: !incognito && Browser.uiTestScript.toString() === "" && !Browser.setting("welcome/done", false)
     Loader {
@@ -313,6 +425,8 @@ ApplicationWindow {
             onPageLoaded: window.autofill(webPage)
             onLoginBoxFocused: window.autofill(webPage)
             onNewPasswordFocused: window.suggestPassword(webPage)
+            onRecentlyAudibleChanged: if (recentlyAudible) { window.mediaTabId = tabId; window.refreshMedia() }
+            onReaderMissing: window.flash(qsTr("No article found on this page"))
             onFullScreenRequested: (request) => {
                 request.accept()
                 request.toggleOn ? window.showFullScreen() : window.showNormal()
@@ -340,6 +454,8 @@ ApplicationWindow {
     TabSidebar {
         id: sidebar
         tabs: window.tabs
+        media: window.mediaCard
+        onMediaAction: (action) => window.mediaAction(action)
         z: 2   // when collapsed it floats over the page while hovered
         visible: !window.fullScreen
         anchors.top: windowBar.bottom   // below the address bar when it runs across the window
@@ -427,6 +543,23 @@ ApplicationWindow {
                             font.pixelSize: Theme.px(11)
                             elide: Text.ElideMiddle
                         }
+                    }
+                    Rectangle {
+                        id: flashBox
+                        z: 9
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 24
+                        width: flashText.implicitWidth + 32
+                        height: 36
+                        radius: 18
+                        color: Theme.surface
+                        border.width: 1
+                        border.color: Theme.line
+                        opacity: 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: Theme.anim } }
+                        Text { id: flashText; anchors.centerIn: parent; color: Theme.fg; font.pixelSize: Theme.px(13) }
                     }
                     // Zoom level, shown when not 100%. Click to reset.
                     Rectangle {
@@ -638,6 +771,7 @@ ApplicationWindow {
         Action { text: qsTr("Reopen closed tab"); onTriggered: window.tabs.reopenClosed() }
         Separator {}
         Action { text: qsTr("Find in page"); enabled: window.view !== null; onTriggered: findBar.open() }
+        Action { text: window.view && window.view.readerOn ? qsTr("Close reading view") : qsTr("Reading view"); enabled: window.view !== null; onTriggered: window.view.reader(!window.view.readerOn) }
         Action { text: qsTr("Save page as PDF"); enabled: window.view !== null; onTriggered: pdfDialog.open() }
         Action { text: qsTr("Zoom in"); onTriggered: window.zoom(1) }
         Action { text: qsTr("Zoom out"); onTriggered: window.zoom(-1) }
@@ -852,5 +986,6 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+-"; onActivated: window.zoom(-1) }
     Shortcut { sequence: "Ctrl+0"; onActivated: window.zoom(0) }
     Shortcut { sequence: "F11"; onActivated: window.toggleFullScreen() }
+    Shortcut { sequence: "F9"; enabled: window.view !== null; onActivated: window.view.reader(!window.view.readerOn) }
     Shortcut { sequences: ["F12", "Ctrl+Shift+I"]; enabled: window.view !== null; onActivated: window.openDevTools() }
 }
