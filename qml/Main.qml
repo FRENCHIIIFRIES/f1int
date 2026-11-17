@@ -284,6 +284,16 @@ ApplicationWindow {
             else test.createObject(window, { win: window })
         }
     }
+    // First run: the welcome intro over everything (not in incognito or UI tests).
+    property bool showWelcome: !incognito && Browser.uiTestScript.toString() === "" && !Browser.setting("welcome/done", false)
+    Loader {
+        anchors.fill: parent
+        z: 1000
+        active: window.showWelcome
+        sourceComponent: Welcome { onFinished: window.showWelcome = false }
+        onLoaded: item.forceActiveFocus()
+    }
+
     // For UI test scripts: reach the menus and panels by name.
     property alias sidebarItem: sidebar
     property alias tabMenuItem: tabMenu
@@ -635,6 +645,7 @@ ApplicationWindow {
         Separator {}
         Action { text: qsTr("Memory"); onTriggered: window.showPanel("memory") }
         Action { text: qsTr("Settings"); onTriggered: window.showPanel("settings") }
+        Action { text: qsTr("Welcome tour"); onTriggered: window.showWelcome = true }
         Action { text: qsTr("Developer tools"); enabled: window.view !== null; onTriggered: window.openDevTools() }
     }
 

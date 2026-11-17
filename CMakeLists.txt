@@ -92,6 +92,7 @@ qt_add_qml_module(f1int
         qml/ColorWheel.qml
         qml/NewTabPage.qml
         qml/PasswordsPanel.qml
+        qml/Welcome.qml
 )
 
 # Icons, logo, dot-matrix font and the starter ad-block list, built into the program
