@@ -28,7 +28,7 @@ public static class Shot {
 if (-not $Name.StartsWith('f1int-test')) { throw "-Name must start with f1int-test" }
 $env:F1INT_TEST_NAME = $Name
 Remove-Item "$env:APPDATA\f1int\$Name", "$env:LOCALAPPDATA\f1int\$Name" -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item "HKCU:\Software\f1int\$Name" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item "HKCU:\Software\f1int\$Name", "HKCU:\Software\f1int\$Name-profiles" -Recurse -Force -ErrorAction SilentlyContinue   # (and its test profiles)
 
 $out = New-Item -ItemType Directory -Force "$PSScriptRoot\..\build\ui-shots"
 $log = Join-Path $out 'app.log'
