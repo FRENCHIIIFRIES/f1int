@@ -13,7 +13,9 @@ Item {
 
     width: ListView.view ? ListView.view.width : 0
     height: group ? 28 : 0
-    visible: height > 0
+    // ListView sets "visible" on section headers itself, so hide empty ones with opacity.
+    opacity: group ? 1 : 0
+    enabled: group !== null
 
     Rectangle {
         anchors.fill: parent
@@ -36,10 +38,9 @@ Item {
             anchors.leftMargin: 12
             anchors.verticalCenter: parent.verticalCenter
             visible: !header.narrow
-            text: header.group ? header.group.name.toUpperCase() : ""
+            text: header.group ? header.group.name : ""
             color: Theme.fg
-            font.pixelSize: 11
-            font.letterSpacing: 1.5
+            font.pixelSize: Theme.px(12)
             font.weight: Font.DemiBold
         }
         Text {
@@ -49,8 +50,8 @@ Item {
             visible: !header.narrow
             text: header.group ? header.group.count : ""
             color: Theme.dim
-            font.family: Theme.dotFont
-            font.pixelSize: 14
+            font.family: Theme.numberFont
+            font.pixelSize: Theme.px(14)
             font.weight: Font.Bold
         }
         Icon {

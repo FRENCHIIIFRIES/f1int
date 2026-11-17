@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Dialogs
+import QtQuick.Effects
 import QtQuick.Layouts
 import QtWebEngine
 import f1int
@@ -27,7 +28,7 @@ ApplicationWindow {
     width: 1280
     height: 820
     visible: true
-    color: Theme.bg
+    color: Theme.chrome   // see-through: Windows draws frosted glass behind
     title: (view && view.title ? view.title : qsTr("New tab")) + (incognito ? " – f1int Incognito" : " – f1int")
     palette.toolTipBase: Theme.surface
     palette.toolTipText: Theme.fg
@@ -36,10 +37,10 @@ ApplicationWindow {
     function setting(key, fallback) { void Browser.settingsRevision; return Browser.setting(key, fallback) }
     // New tabs: f1int's own page (default), a blank page, the home page, or any address.
     function newTabUrl() {
-        const mode = setting("newtab/mode", "f1int")
+        const mode = setting("newtab/mode", "home")   // default: google.com (the home page)
         return mode === "home" ? Browser.homeUrl : mode === "custom" ? Browser.urlFromInput(setting("newtab/url", "")) : "about:blank"
     }
-    readonly property bool showNewTabPage: view !== null && setting("newtab/mode", "f1int") === "f1int"
+    readonly property bool showNewTabPage: view !== null && setting("newtab/mode", "home") === "f1int"
                                            && (view.url.toString() === "" || view.url.toString() === "about:blank")
     function openNewTab() {
         newTab()
@@ -103,6 +104,70 @@ ApplicationWindow {
         return last
     }
     function showPanel(name) { panel = panel === name ? "" : name }
+
+    // ---------- passwords ----------
+    property var savePrompt: null       // { url, username, password, kind } after a login was sent
+    property var suggestion: null       // { page, password } for a sign-up box
+    property var pendingAction: null    // runs once the vault is unlocked
+    function host(url) { return url.toString().replace(/^https?:\/\/(www\.)?/, "").split("/")[0] }
+    // Run `action` with the vault unlocked: asks Windows Hello / Touch ID, or opens the
+    // Passwords panel for the master password (or to create the vault the first time).
+    function withUnlocked(action) {
+        const v = Browser.passwords
+        if (v.state === "unlocked") return action()
+        pendingAction = action
+        if (v.state === "locked" && v.deviceUnlock) Browser.askDevice(window, "unlock")
+        else panel = "passwords"
+    }
+    function offerSave(page, username, password) {
+        if (incognito || password === "" || !setting("passwords/offer", true)) return
+        if (String(setting("passwords/never", "")).split("\n").indexOf(host(page.url)) >= 0) return
+        const v = Browser.passwords
+        const kind = v.state === "unlocked" ? v.saveKind(page.url, username, password) : "new"
+        if (kind !== "same") savePrompt = { url: page.url, username: username, password: password, kind: kind }
+    }
+    function savePassword() {
+        const s = savePrompt
+        savePrompt = null
+        withUnlocked(() => Browser.passwords.save(s.url, s.username, s.password))
+    }
+    function neverSave() {
+        const list = String(setting("passwords/never", "")).split("\n").filter(x => x)
+        list.push(host(savePrompt.url))
+        Browser.setSetting("passwords/never", list.join("\n"))
+        savePrompt = null
+    }
+    // Fill a saved login when there's exactly one for this site (more: pick from the key button).
+    function autofill(page) {
+        if (!setting("passwords/autofill", true) || Browser.passwords.state !== "unlocked") return
+        const logins = Browser.passwords.loginsFor(page.url)
+        if (logins.length === 1) page.fillLogin(logins[0].username, Browser.passwords.password(logins[0].id))
+    }
+    function fillAs(id) {
+        withUnlocked(() => {
+            const login = Browser.passwords.loginsFor(view.url).find(l => l.id === id)
+            if (login) view.fillLogin(login.username, Browser.passwords.password(id))
+        })
+    }
+    function suggestPassword(page) {
+        if (setting("passwords/generator", true)) suggestion = { page: page, password: Browser.passwords.generate(20) }
+    }
+    Connections {
+        target: Browser.passwords
+        function onChanged() {
+            if (Browser.passwords.state === "unlocked" && window.pendingAction) {
+                const action = window.pendingAction
+                window.pendingAction = null
+                action()
+            }
+        }
+    }
+    Connections {
+        target: Browser
+        function onDeviceAuthFinished(purpose, ok, error) {
+            if (purpose === "unlock" && !ok && window.pendingAction) window.panel = "passwords"   // fall back to the master password
+        }
+    }
 
     // ---------- tab sleeping (memory saver) ----------
     // Background tabs are Frozen (page kept, stops running) after a few minutes, and
@@ -176,7 +241,12 @@ ApplicationWindow {
         pages = {}
     }
 
+    // Frosted glass behind the window (Windows 11), redone when light/dark changes.
+    function applyGlass() { if (Theme.glass) Browser.applyBackdrop(window, Theme.dark) }
+    Connections { target: Theme; function onDarkChanged() { window.applyGlass() } function onGlassChanged() { window.applyGlass() } }
+
     Component.onCompleted: {
+        applyGlass()
         // Remember when the user types into a form, so memory saver leaves that tab awake.
         // Runs in a separate script world: pages can't see or change it.
         if (profile.userScripts.find("f1int-edit-tracker").length === 0) {
@@ -189,6 +259,16 @@ ApplicationWindow {
             s.runsOnSubFrames = true
             profile.userScripts.insert(s)
         }
+        // The password helper (notices logins, fills saved ones), also in the separate world.
+        if (profile.userScripts.find("f1int-passwords").length === 0) {
+            const p = WebEngine.script()
+            p.name = "f1int-passwords"
+            p.sourceCode = Browser.passwordScript
+            p.injectionPoint = WebEngineScript.DocumentReady
+            p.worldId = WebEngineScript.ApplicationWorld
+            p.runsOnSubFrames = false
+            profile.userScripts.insert(p)
+        }
 
         const restored = Browser.registerWindow(tabs, incognito)   // reopens last session's tabs
         const start = Browser.takeStartUrls()
@@ -198,8 +278,11 @@ ApplicationWindow {
             newTab(start.first ? Browser.homeUrl : newTabUrl())
 
         // UI test scripts (tests/ui/*.qml) run only when F1INT_UI_TEST names one.
-        if (Browser.uiTestScript.toString() !== "")
-            Qt.createComponent(Browser.uiTestScript).createObject(window, { win: window })
+        if (Browser.uiTestScript.toString() !== "") {
+            const test = Qt.createComponent(Browser.uiTestScript)
+            if (test.status === Component.Error) console.warn("UI test failed to load: " + test.errorString())
+            else test.createObject(window, { win: window })
+        }
     }
     // For UI test scripts: reach the menus and panels by name.
     property alias sidebarItem: sidebar
@@ -212,9 +295,14 @@ ApplicationWindow {
     Component {
         id: pageComponent
         WebView {
+            id: webPage
             anchors.fill: parent
             onOpenRequested: (request) => window.handleOpen(request, tabId)
             onLinkHovered: (url) => window.hoveredLink = url.toString()
+            onLoginSubmitted: (username, password) => window.offerSave(webPage, username, password)
+            onPageLoaded: window.autofill(webPage)
+            onLoginBoxFocused: window.autofill(webPage)
+            onNewPasswordFocused: window.suggestPassword(webPage)
             onFullScreenRequested: (request) => {
                 request.accept()
                 request.toggleOn ? window.showFullScreen() : window.showNormal()
@@ -223,112 +311,232 @@ ApplicationWindow {
     }
 
     // ---------- layout ----------
+    // ---- The address bar's own row across the top of the window (the default layout) ----
+    Item {
+        id: windowBar
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        height: Theme.addressPlace === "window" && !window.fullScreen ? 50 : 0
+        Rectangle {   // a thin line separates the bar from the tabs and the page below
+            anchors.bottom: parent.bottom
+            width: parent.width
+            height: 1
+            color: Theme.line
+            visible: parent.height > 0
+        }
+    }
+
     TabSidebar {
         id: sidebar
         tabs: window.tabs
         z: 2   // when collapsed it floats over the page while hovered
         visible: !window.fullScreen
-        anchors.top: parent.top
+        anchors.top: windowBar.bottom   // below the address bar when it runs across the window
         anchors.bottom: parent.bottom
+        // Left or right side (Settings > Appearance > Layout).
+        x: Theme.tabsOnRight ? window.width - width : 0
+        hasToolbar: Theme.addressInSidebar
         onNewTabRequested: window.openNewTab()
         onTabMenuRequested: (id) => tabMenu.openFor(id)
         onGroupMenuRequested: (id) => groupMenu.openFor(sidebar.groupInfo(id))
         onMuteToggled: (id) => window.setMuted(id, !window.tabs.tab(id).muted)
+        onPanelRequested: (name) => window.showPanel(name)
     }
+    // The toolbar is above the page when it's set to "on top", or while the tab bar is collapsed.
+    readonly property bool toolbarOnTop: Theme.addressPlace === "page" || (Theme.addressInSidebar && sidebar.collapsed)
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.leftMargin: window.fullScreen ? 0 : sidebar.reservedWidth
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: windowBar.bottom
+        anchors.bottom: parent.bottom
+        // Room for the tab bar on its side, and a gap around the page card (none in full screen).
+        anchors.leftMargin: window.fullScreen ? 0 : Theme.tabsOnRight ? Theme.inset : sidebar.reservedWidth
+        anchors.rightMargin: window.fullScreen ? 0 : Theme.tabsOnRight ? sidebar.reservedWidth : Theme.inset
+        anchors.bottomMargin: window.fullScreen ? 0 : Theme.inset
+        anchors.topMargin: window.fullScreen || window.toolbarOnTop ? 0 : Theme.inset
         spacing: 0
 
-        Toolbar {
-            id: toolbar
-            Layout.fillWidth: true
-            visible: !window.fullScreen
-            view: window.view
-            incognito: window.incognito
-            activeDownloads: window.activeDownloads
-            onMenuRequested: (button) => mainMenu.popup(button, button.width - mainMenu.width, button.height + 4)
-            onPanelRequested: (name) => window.showPanel(name)
-        }
-        Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line; visible: !window.fullScreen }
-        FindBar { id: findBar; Layout.fillWidth: true; view: window.view }
-
+        // The toolbar sits here, above the page, only while the tab bar is collapsed.
         Item {
-            id: pageArea
+            id: topBar
+            visible: window.toolbarOnTop && !window.fullScreen
+            Layout.fillWidth: true
+            Layout.preferredHeight: visible ? 46 : 0
+        }
+
+        // ---- The page card: rounded corners, solid background, sits on the glass ----
+        Item {
+            id: card
             Layout.fillWidth: true
             Layout.fillHeight: true
-
-            // Where a hovered link goes, bottom left (like other browsers).
-            Rectangle {
-                z: 5
-                visible: window.hoveredLink !== ""
-                anchors.left: parent.left
-                anchors.bottom: parent.bottom
-                anchors.margins: 6
-                width: Math.min(linkText.implicitWidth + 20, parent.width * 0.6)
-                height: 24
-                radius: 6
-                color: Theme.surface
-                border.width: 1
-                border.color: Theme.line
-                Text {
-                    id: linkText
-                    anchors.fill: parent
-                    anchors.leftMargin: 10
-                    anchors.rightMargin: 10
-                    verticalAlignment: Text.AlignVCenter
-                    text: window.hoveredLink
-                    color: Theme.dim
-                    font.pixelSize: 11
-                    elide: Text.ElideMiddle
-                }
+            layer.enabled: !window.fullScreen
+            layer.effect: MultiEffect {   // rounds the corners of everything inside
+                maskEnabled: true
+                maskSource: cardMask
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1.0
             }
-            // Zoom level, shown when not 100%. Click to reset.
-            Rectangle {
-                z: 5
-                visible: window.view !== null && Math.abs(window.view.zoomFactor - 1) > 0.001
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.margins: 8
-                width: zoomText.implicitWidth + 18
-                height: 26
-                radius: 13
-                color: Theme.surface
-                border.width: 1
-                border.color: Theme.line
-                Text {
-                    id: zoomText
-                    anchors.centerIn: parent
-                    text: window.view ? Math.round(window.view.zoomFactor * 100) + "%" : ""
-                    color: Theme.fg
-                    font.family: Theme.dotFont
-                    font.pixelSize: 15
-                    font.weight: Font.Bold
-                }
-                MouseArea { anchors.fill: parent; onClicked: window.zoom(0) }
-            }
-
-            // The new tab page, on top of an empty tab's (unloaded) page.
-            Loader {
-                id: newTabPage
-                z: 4
+            Rectangle {   // background; see-through for the new tab page so the glass shows
                 anchors.fill: parent
-                active: window.showNewTabPage
-                sourceComponent: NewTabPage { view: window.view; incognito: window.incognito }
+                color: window.showNewTabPage ? "transparent" : Theme.bg
             }
 
-            // Side panel on the right: bookmarks / history / downloads, settings, memory.
-            Loader {
-                z: 6
-                active: window.panel !== ""
-                anchors.right: parent.right
-                anchors.top: parent.top
-                anchors.bottom: parent.bottom
-                width: Math.min(400, parent.width - 40)
-                sourceComponent: window.panel === "settings" ? settingsPanel
-                               : window.panel === "memory" ? memoryPanel : libraryPanel
+            ColumnLayout {
+                anchors.fill: parent
+                spacing: 0
+                FindBar { id: findBar; Layout.fillWidth: true; view: window.view }
+
+                Item {
+                    id: pageArea
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+
+                    // Where a hovered link goes, bottom left (like other browsers).
+                    Rectangle {
+                        z: 5
+                        visible: window.hoveredLink !== ""
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        anchors.margins: 6
+                        width: Math.min(linkText.implicitWidth + 20, parent.width * 0.6)
+                        height: 24
+                        radius: 6
+                        color: Theme.surface
+                        border.width: 1
+                        border.color: Theme.line
+                        Text {
+                            id: linkText
+                            anchors.fill: parent
+                            anchors.leftMargin: 10
+                            anchors.rightMargin: 10
+                            verticalAlignment: Text.AlignVCenter
+                            text: window.hoveredLink
+                            color: Theme.dim
+                            font.pixelSize: Theme.px(11)
+                            elide: Text.ElideMiddle
+                        }
+                    }
+                    // Zoom level, shown when not 100%. Click to reset.
+                    Rectangle {
+                        z: 5
+                        visible: window.view !== null && Math.abs(window.view.zoomFactor - 1) > 0.001
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 8
+                        width: zoomText.implicitWidth + 18
+                        height: 26
+                        radius: 13
+                        color: Theme.surface
+                        border.width: 1
+                        border.color: Theme.line
+                        Text {
+                            id: zoomText
+                            anchors.centerIn: parent
+                            text: window.view ? Math.round(window.view.zoomFactor * 100) + "%" : ""
+                            color: Theme.fg
+                            font.family: Theme.numberFont
+                            font.pixelSize: Theme.px(15)
+                            font.weight: Font.Bold
+                        }
+                        MouseArea { anchors.fill: parent; onClicked: window.zoom(0) }
+                    }
+
+                    // The new tab page, on top of an empty tab's (unloaded) page.
+                    Loader {
+                        id: newTabPage
+                        z: 4
+                        anchors.fill: parent
+                        active: window.showNewTabPage
+                        sourceComponent: NewTabPage { view: window.view; incognito: window.incognito }
+                    }
+
+                    // Side panel on the right: bookmarks / history / downloads, settings, memory.
+                    Loader {
+                        z: 6
+                        active: window.panel !== ""
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        width: Math.min(400, parent.width - 40)
+                        sourceComponent: window.panel === "settings" ? settingsPanel
+                                       : window.panel === "memory" ? memoryPanel
+                                       : window.panel === "passwords" ? passwordsPanel : libraryPanel
+                    }
+
+                    // "Save password?" and "Use a strong password?" cards, top right under the toolbar.
+                    Column {
+                        z: 7
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.margins: 10
+                        spacing: 8
+                        width: 330
+
+                        PromptCard {
+                            visible: window.savePrompt !== null
+                            title: window.savePrompt === null ? "" : window.savePrompt.kind === "update"
+                                   ? qsTr("Update the password for %1?").arg(window.host(window.savePrompt.url))
+                                   : qsTr("Save the password for %1?").arg(window.host(window.savePrompt.url))
+                            detail: window.savePrompt === null ? "" : (window.savePrompt.username || qsTr("No username"))
+                            dots: 10
+                            Ui.Pill { text: qsTr("Never here"); onClicked: window.neverSave() }
+                            Ui.Pill { text: qsTr("Not now"); onClicked: window.savePrompt = null }
+                            Ui.Pill { primary: true; text: window.savePrompt && window.savePrompt.kind === "update" ? qsTr("Update") : qsTr("Save"); onClicked: window.savePassword() }
+                        }
+                        PromptCard {
+                            visible: window.suggestion !== null
+                            title: qsTr("Use a strong password?")
+                            detail: window.suggestion ? window.suggestion.password : ""
+                            mono: true
+                            IconButton { iconName: "dice"; tip: qsTr("Another one"); onClicked: window.suggestion = { page: window.suggestion.page, password: Browser.passwords.generate(20) } }
+                            Ui.Pill { text: qsTr("No thanks"); onClicked: window.suggestion = null }
+                            Ui.Pill {
+                                primary: true
+                                text: qsTr("Use it")
+                                onClicked: { window.suggestion.page.fillNewPassword(window.suggestion.password); window.suggestion = null }
+                            }
+                        }
+                    }
+                }
             }
+
+            // Loading progress: a thin accent line along the card's top edge.
+            Rectangle {
+                z: 8
+                width: window.view && window.view.loading ? parent.width * window.view.loadProgress / 100 : 0
+                height: 2
+                color: Theme.accent
+                visible: width > 0
+                Behavior on width { NumberAnimation { duration: Theme.anim } }
+            }
+        }
+    }
+    Rectangle {   // the card's shape, used as a mask (not drawn)
+        id: cardMask
+        width: card.width
+        height: card.height
+        radius: Theme.cardRadius
+        visible: false
+        layer.enabled: true
+    }
+
+    // The toolbar: at the top of the tab bar (stacked), or above the page when the bar is collapsed.
+    Toolbar {
+        id: toolbar
+        parent: Theme.addressPlace === "window" ? windowBar : window.toolbarOnTop ? topBar : sidebar.toolbarSlot
+        anchors.fill: parent
+        stacked: parent === sidebar.toolbarSlot   // two rows only inside the tab bar
+        visible: !window.fullScreen
+        view: window.view
+        incognito: window.incognito
+        activeDownloads: window.activeDownloads
+        onMenuRequested: (button) => mainMenu.popup(button, button.width - mainMenu.width, button.height + 4)
+        onPanelRequested: (name) => window.showPanel(name)
+        onKeyRequested: (button) => {
+            keyMenu.logins = Browser.passwords.state === "unlocked" ? Browser.passwords.loginsFor(window.view.url) : []
+            keyMenu.popup(button, button.width - keyMenu.width, button.height + 6)
         }
     }
 
@@ -342,7 +550,56 @@ ApplicationWindow {
             onCloseRequested: window.panel = ""
         }
     }
-    Component { id: settingsPanel; SettingsPanel { onCloseRequested: window.panel = "" } }
+    Component { id: settingsPanel; SettingsPanel { onCloseRequested: window.panel = ""; onOpenPasswordsRequested: window.panel = "passwords" } }
+    Component { id: passwordsPanel; PasswordsPanel { onCloseRequested: { window.panel = ""; window.pendingAction = null } } }
+
+    // A small card with a question and buttons (the password prompts).
+    component PromptCard: Rectangle {
+        id: card
+        property string title
+        property string detail
+        property bool mono: false
+        property int dots: 0          // a hidden password, drawn as dots
+        default property alias buttons: buttonRow.data
+        width: parent ? parent.width : 330
+        height: cardColumn.implicitHeight + 28
+        radius: 14
+        color: Theme.surface
+        border.width: 1
+        border.color: Theme.line
+        Column {
+            id: cardColumn
+            x: 16
+            y: 14
+            width: parent.width - 32
+            spacing: 10
+            Row {
+                spacing: 10
+                width: parent.width
+                Icon { glyph: "key"; color: Theme.accent; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: card.title; color: Theme.fg; font.pixelSize: Theme.px(13); wrapMode: Text.Wrap; width: parent.width - 30 }
+            }
+            Row {
+                spacing: 12
+                width: parent.width
+                Text {
+                    text: card.detail
+                    color: card.mono ? Theme.fg : Theme.dim
+                    font.family: card.mono ? "Consolas, Menlo, monospace" : ""
+                    font.pixelSize: Theme.px(card.mono ? 15 : 12)
+                    elide: Text.ElideRight
+                    width: Math.min(implicitWidth, parent.width - (card.dots > 0 ? 80 : 0))
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Ui.Dots { visible: card.dots > 0; count: card.dots; anchors.verticalCenter: parent.verticalCenter }
+            }
+            Row {
+                id: buttonRow
+                anchors.right: parent.right
+                spacing: 6
+            }
+        }
+    }
     Component {
         id: memoryPanel
         MemoryPanel {
@@ -367,6 +624,7 @@ ApplicationWindow {
         Action { text: qsTr("Bookmarks"); onTriggered: window.showPanel("bookmarks") }
         Action { text: qsTr("History"); onTriggered: window.showPanel("history") }
         Action { text: qsTr("Downloads"); onTriggered: window.showPanel("downloads") }
+        Action { text: qsTr("Passwords"); onTriggered: window.showPanel("passwords") }
         Action { text: qsTr("Reopen closed tab"); onTriggered: window.tabs.reopenClosed() }
         Separator {}
         Action { text: qsTr("Find in page"); enabled: window.view !== null; onTriggered: findBar.open() }
@@ -378,6 +636,29 @@ ApplicationWindow {
         Action { text: qsTr("Memory"); onTriggered: window.showPanel("memory") }
         Action { text: qsTr("Settings"); onTriggered: window.showPanel("settings") }
         Action { text: qsTr("Developer tools"); enabled: window.view !== null; onTriggered: window.openDevTools() }
+    }
+
+    // The key button's menu: fill a saved login, unlock, or get a strong password.
+    F1Menu {
+        id: keyMenu
+        property var logins: []
+        Instantiator {
+            model: keyMenu.logins
+            delegate: Action {
+                required property var modelData
+                text: qsTr("Fill in as %1").arg(modelData.username || qsTr("(no username)"))
+                onTriggered: window.fillAs(modelData.id)
+            }
+            onObjectAdded: (index, action) => keyMenu.insertAction(index, action)
+            onObjectRemoved: (index, action) => keyMenu.removeAction(action)
+        }
+        Action {
+            text: Browser.passwords.state === "none" ? qsTr("Set up passwords…") : qsTr("Unlock passwords")
+            enabled: Browser.passwords.state !== "unlocked"
+            onTriggered: window.withUnlocked(() => window.autofill(window.view))
+        }
+        Action { text: qsTr("Suggest a strong password"); onTriggered: window.suggestPassword(window.view) }
+        Action { text: qsTr("Manage passwords"); onTriggered: window.panel = "passwords" }
     }
 
     F1Menu {
@@ -462,13 +743,7 @@ ApplicationWindow {
 
         contentItem: ColumnLayout {
             spacing: 16
-            Text {
-                text: groupPopup.groupId >= 0 ? qsTr("EDIT GROUP") : qsTr("NEW GROUP")
-                color: Theme.fg
-                font.family: Theme.dotFont
-                font.pixelSize: 22
-                font.weight: Font.Black
-            }
+            Ui.Heading { text: groupPopup.groupId >= 0 ? qsTr("Edit group") : qsTr("New group"); font.pixelSize: Theme.px(22) }
             Ui.Field {
                 id: nameField
                 Layout.fillWidth: true

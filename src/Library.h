@@ -39,6 +39,15 @@ public:
     // Address bar suggestions: bookmarks first, then the most visited history.
     Q_INVOKABLE QVariantList suggest(const QString &text, int limit = 6) const;
 
+    // ---- import from Chrome, Edge or Brave on this computer ----
+    // [{ browser, name, path }] for every profile found.
+    Q_INVOKABLE QVariantList otherBrowserProfiles() const;
+    // Copies bookmarks and history from a profile folder. Returns { bookmarks, history }
+    // (how many were added) or { error } with a message for the user.
+    Q_INVOKABLE QVariantMap importProfile(const QString &profilePath);
+    // Where to look for other browsers' data (tests point this at a fake folder).
+    QList<QPair<QString, QString>> browserRoots;   // (browser name, "User Data" folder)
+
 signals:
     void changed();
 

@@ -2,6 +2,8 @@
 #include <QGuiApplication>
 #include <QIcon>
 #include <QQmlApplicationEngine>
+#include <QQuickWindow>
+#include <QSettings>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
 // Chromium command-line switches. Qt WebEngine reads them once, when it starts,
@@ -36,10 +38,22 @@ int main(int argc, char *argv[])
 
     applyChromiumFlags();
     QtWebEngineQuick::initialize();   // must come before the app object is created
+    QQuickWindow::setDefaultAlphaBuffer(true);   // windows can be see-through (frosted-glass backdrop)
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationVersion(QStringLiteral(F1INT_VERSION));
     app.setWindowIcon(QIcon(QStringLiteral(":/logo/f1int.svg")));
-    QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/Doto.ttf"));   // dot-matrix font
+    QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/Doto.ttf"));   // optional dot-matrix numbers
+
+    // The UI font (Settings > Appearance > Font). "System" = the platform's own UI font;
+    // on Windows 11 that's Segoe UI Variable, which reads nicely at small sizes.
+    QString family = QSettings().value(QStringLiteral("appearance/font")).toString();
+    if (family.isEmpty() && QFontDatabase::hasFamily(QStringLiteral("Segoe UI Variable Text")))
+        family = QStringLiteral("Segoe UI Variable Text");
+    if (!family.isEmpty()) {
+        QFont font = QGuiApplication::font();
+        font.setFamily(family);
+        QGuiApplication::setFont(font);
+    }
 
     QQmlApplicationEngine engine;
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,

@@ -11,8 +11,11 @@ Rectangle {
     property WebEngineView view: null   // the open tab's page (none while switching)
     property bool incognito: false
     property int activeDownloads: 0
+    // Stacked: two rows (buttons, then a full-width address bar), for the top of the tab bar.
+    property bool stacked: false
     signal menuRequested(Item button)
     signal panelRequested(string name)
+    signal keyRequested(Item button)
 
     function focusAddress() { address.forceActiveFocus(); address.selectAll() }
     function toggleBookmark() {
@@ -33,8 +36,8 @@ Rectangle {
         view.forceActiveFocus()   // hand the keyboard back to the page
     }
 
-    implicitHeight: 46
-    color: Theme.bg
+    implicitHeight: stacked ? 82 : 46
+    color: "transparent"
 
     // Network indicator: lights up while the open tab's site is sending requests.
     Connections {
@@ -44,26 +47,33 @@ Rectangle {
         }
     }
 
-    RowLayout {
+    GridLayout {
         anchors.fill: parent
         anchors.leftMargin: 8
         anchors.rightMargin: 8
-        spacing: 2
+        anchors.topMargin: bar.stacked ? 6 : 0
+        anchors.bottomMargin: bar.stacked ? 6 : 0
+        columnSpacing: 2
+        rowSpacing: 6
 
-        IconButton { iconName: "back";    tip: qsTr("Back (Alt+Left)");     enabled: bar.view && bar.view.canGoBack;    onClicked: bar.view.goBack() }
-        IconButton { iconName: "forward"; tip: qsTr("Forward (Alt+Right)"); enabled: bar.view && bar.view.canGoForward; onClicked: bar.view.goForward() }
+        IconButton { Layout.row: 0; Layout.column: 0; iconName: "back";    tip: qsTr("Back (Alt+Left)");     enabled: bar.view && bar.view.canGoBack;    onClicked: bar.view.goBack() }
+        IconButton { Layout.row: 0; Layout.column: 1; iconName: "forward"; tip: qsTr("Forward (Alt+Right)"); enabled: bar.view && bar.view.canGoForward; onClicked: bar.view.goForward() }
         IconButton {
+            Layout.row: 0
+            Layout.column: 2
             readonly property bool loading: bar.view !== null && bar.view.loading
             iconName: loading ? "stop" : "reload"
             tip: loading ? qsTr("Stop (Esc)") : qsTr("Reload (F5)")
             enabled: bar.view !== null
             onClicked: loading ? bar.view.stop() : bar.view.reload()
         }
-        IconButton { iconName: "home"; tip: qsTr("Home (Alt+Home)"); enabled: bar.view !== null; onClicked: bar.view.url = Browser.homeUrl }
+        IconButton { Layout.row: 0; Layout.column: 3; visible: Theme.showHome; iconName: "home"; tip: qsTr("Home (Alt+Home)"); enabled: bar.view !== null; onClicked: bar.view.url = Browser.homeUrl }
 
         // Incognito badge
         Rectangle {
             visible: bar.incognito
+            Layout.row: 0
+            Layout.column: 4
             Layout.leftMargin: 6
             implicitWidth: incognitoRow.implicitWidth + 16
             implicitHeight: 26
@@ -74,32 +84,35 @@ Rectangle {
                 anchors.centerIn: parent
                 spacing: 6
                 Icon { glyph: "incognito"; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                Text { text: qsTr("Incognito"); color: Theme.fg; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                Text { text: qsTr("Incognito"); color: Theme.fg; font.pixelSize: Theme.px(11); anchors.verticalCenter: parent.verticalCenter }
             }
         }
 
         TextField {
             id: address
+            Layout.row: bar.stacked ? 1 : 0
+            Layout.column: bar.stacked ? 0 : 5
+            Layout.columnSpan: bar.stacked ? 8 : 1
             Layout.fillWidth: true
-            Layout.leftMargin: 6
-            Layout.rightMargin: 6
-            implicitHeight: 32
+            Layout.leftMargin: bar.stacked ? 0 : 6
+            Layout.rightMargin: bar.stacked ? 0 : 6
+            implicitHeight: Theme.rowHeight
             leftPadding: 34
-            rightPadding: 60
+            rightPadding: 92   // room for the activity dot, key and star
             color: Theme.fg
-            placeholderText: qsTr("Search or type a web address")
+            placeholderText: qsTr("Search or enter address")
             placeholderTextColor: Theme.dim
             selectByMouse: true
             selectionColor: Theme.accent
-            selectedTextColor: Theme.onAccent
-            font.pixelSize: 13
+            selectedTextColor: Theme.textOnAccent
+            font.pixelSize: Theme.px(13)
             Accessible.name: qsTr("Address and search bar")
 
             background: Rectangle {
-                radius: Theme.radius
-                color: Theme.surface
+                radius: Theme.radius   // (Settings > Appearance > Corners)
+                color: Theme.field
                 border.width: 1
-                border.color: address.activeFocus ? Theme.dim : Theme.line
+                border.color: address.activeFocus ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55) : "transparent"   // soft outline only while typing
                 Behavior on border.color { ColorAnimation { duration: Theme.anim } }
             }
             // Padlock on secure (https) pages, magnifier otherwise.
@@ -130,6 +143,17 @@ Rectangle {
                     ToolTip.text: qsTr("This site is sending requests")
                     HoverHandler { id: activityHover }
                     ToolTip.visible: activityHover.hovered
+                }
+                IconButton {   // saved logins for this site (shown where there's a login box)
+                    id: keyButton
+                    implicitWidth: 26
+                    implicitHeight: 26
+                    iconSize: 15
+                    visible: bar.view !== null && bar.view.hasLoginForm
+                    iconName: "key"
+                    iconColor: Browser.passwords.state === "unlocked" ? Theme.fg : Theme.dim
+                    tip: qsTr("Passwords for this site")
+                    onClicked: bar.keyRequested(keyButton)
                 }
                 IconButton {
                     readonly property bool starred: { void Browser.library.revision; return bar.view !== null && Browser.library.isBookmarked(bar.view.url) }
@@ -207,7 +231,7 @@ Rectangle {
                             textFormat: Text.StyledText
                             text: (modelData.title || "").replace(/</g, "&lt;") + "  <font color='" + Theme.dim + "'>" + bar.prettyUrl(modelData.url) + "</font>"
                             color: Theme.fg
-                            font.pixelSize: 12
+                            font.pixelSize: Theme.px(12)
                             elide: Text.ElideRight
                         }
                         MouseArea { anchors.fill: parent; onClicked: bar.go(modelData.url) }
@@ -216,8 +240,13 @@ Rectangle {
             }
         }
 
+        Item { visible: bar.stacked; Layout.row: 0; Layout.column: 5; Layout.fillWidth: true }   // pushes the right-hand buttons over
+
         // Downloads: shows a red dot while something is downloading.
         IconButton {
+            Layout.row: 0
+            Layout.column: 6
+            visible: Theme.showDownloads || bar.activeDownloads > 0
             iconName: "download"
             tip: qsTr("Downloads (Ctrl+J)")
             onClicked: bar.panelRequested("downloads")
@@ -234,6 +263,8 @@ Rectangle {
         }
         IconButton {
             id: more
+            Layout.row: 0
+            Layout.column: 7
             iconName: "more"
             tip: qsTr("Menu")
             onClicked: bar.menuRequested(more)
@@ -246,7 +277,7 @@ Rectangle {
         width: bar.view && bar.view.loading ? parent.width * bar.view.loadProgress / 100 : 0
         height: 2
         color: Theme.accent
-        visible: width > 0
+        visible: width > 0 && !bar.stacked   // in the tab bar, the page card shows progress instead
         Behavior on width { NumberAnimation { duration: Theme.anim } }
     }
 }

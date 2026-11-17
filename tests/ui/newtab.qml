@@ -28,7 +28,7 @@ Item {
         onTriggered: {
             const w = test.win
             switch (test.step++) {
-            case 0: w.openNewTab(); break
+            case 0: Browser.setSetting("newtab/mode", "f1int"); w.openNewTab(); break   // (default is google.com)
             case 1: test.check(w.showNewTabPage, "new tab shows the new tab page")
                     test.check(w.view.url.toString() === "", "empty tab loaded no web page")
                     test.say("ntp-default"); break

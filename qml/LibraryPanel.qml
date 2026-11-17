@@ -33,13 +33,7 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            Text {
-                text: panel.page.toUpperCase()
-                color: Theme.fg
-                font.family: Theme.dotFont
-                font.pixelSize: 24
-                font.weight: Font.Black
-            }
+            Ui.Heading { text: panel.page.charAt(0).toUpperCase() + panel.page.slice(1) }
             Item { Layout.fillWidth: true }
             IconButton { iconName: "close"; tip: qsTr("Close"); onClicked: panel.closeRequested() }
         }
@@ -85,13 +79,24 @@ Rectangle {
                     anchors.right: remove.left
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
-                    Text { text: modelData.title || modelData.url; color: Theme.fg; font.pixelSize: 13; elide: Text.ElideRight; Layout.fillWidth: true }
-                    Text {
-                        text: modelData.url.replace(/^https?:\/\/(www\.)?/, "") + (panel.page === "history" ? "  ·  " + panel.niceTime(modelData.time) : "")
-                        color: Theme.dim
-                        font.pixelSize: 11
-                        elide: Text.ElideRight
+                    Text { text: modelData.title || modelData.url; color: Theme.fg; font.pixelSize: Theme.px(13); elide: Text.ElideRight; Layout.fillWidth: true }
+                    RowLayout {
                         Layout.fillWidth: true
+                        Text {
+                            text: modelData.url.replace(/^https?:\/\/(www\.)?/, "")
+                            color: Theme.dim
+                            font.pixelSize: Theme.px(11)
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
+                        }
+                        Text {   // when it was visited
+                            visible: panel.page === "history"
+                            text: panel.niceTime(modelData.time)
+                            color: Theme.dim
+                            font.family: Theme.numberFont
+                            font.pixelSize: Theme.px(12)
+                            font.weight: Font.Bold
+                        }
                     }
                 }
                 MouseArea { anchors.fill: parent; onClicked: panel.openUrl(modelData.url) }
@@ -112,7 +117,7 @@ Rectangle {
                 horizontalAlignment: Text.AlignHCenter
                 text: panel.page === "bookmarks" ? qsTr("No bookmarks yet.\nClick ☆ in the address bar (Ctrl+D).") : qsTr("No history.")
                 color: Theme.dim
-                font.pixelSize: 12
+                font.pixelSize: Theme.px(12)
             }
         }
         Ui.Pill {
@@ -149,7 +154,7 @@ Rectangle {
                     spacing: 4
                     RowLayout {
                         Layout.fillWidth: true
-                        Text { text: item.modelData.downloadFileName; color: Theme.fg; font.pixelSize: 13; elide: Text.ElideMiddle; Layout.fillWidth: true }
+                        Text { text: item.modelData.downloadFileName; color: Theme.fg; font.pixelSize: Theme.px(13); elide: Text.ElideMiddle; Layout.fillWidth: true }
                         IconButton { visible: item.done; iconName: "folder"; tip: qsTr("Show in folder"); onClicked: Qt.openUrlExternally(Browser.fileUrl(item.modelData.downloadDirectory)) }
                         IconButton { visible: !item.done && !item.failed; iconName: "close"; tip: qsTr("Cancel"); onClicked: item.modelData.cancel() }
                     }
@@ -168,10 +173,10 @@ Rectangle {
                     }
                     Text {
                         text: item.failed ? qsTr("Cancelled")
-                              : item.done ? panel.size(item.modelData.totalBytes) + "  ·  " + qsTr("Done")
+                              : item.done ? qsTr("Done, %1").arg(panel.size(item.modelData.totalBytes))
                               : panel.size(item.modelData.receivedBytes) + (item.modelData.totalBytes > 0 ? " / " + panel.size(item.modelData.totalBytes) : "")
                         color: item.failed ? Theme.accent : Theme.dim
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.px(11)
                     }
                 }
                 MouseArea {   // click a finished download to open it
@@ -186,7 +191,7 @@ Rectangle {
                 visible: downloadList.count === 0
                 text: qsTr("No downloads yet.")
                 color: Theme.dim
-                font.pixelSize: 12
+                font.pixelSize: Theme.px(12)
             }
         }
     }

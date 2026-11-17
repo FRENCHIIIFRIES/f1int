@@ -2,7 +2,7 @@ import QtQuick
 import QtQuick.Controls.Basic
 import f1int
 
-// One tab in the vertical tab bar: icon, title, sound and close buttons.
+// One tab in the tab bar: icon, title, sound and close buttons.
 // Click to switch, middle-click to close, right-click for the menu, drag to reorder.
 Item {
     id: row
@@ -20,9 +20,9 @@ Item {
     signal menuRequested()
     signal muteToggled()
 
-    readonly property bool current: tabId === row.tabs.currentId
+    readonly property bool current: tabId === tabs.currentId
     width: ListView.view ? ListView.view.width : 0
-    height: group && group.collapsed ? 0 : 34
+    height: group && group.collapsed ? 0 : Theme.rowHeight
     visible: height > 0
     Behavior on height { NumberAnimation { duration: Theme.anim; easing.type: Easing.OutCubic } }
 
@@ -36,21 +36,28 @@ Item {
         id: body
         property int tabId: row.tabId   // read by the DropArea of the tab it's dropped on
         width: row.width
-        height: 34
-        radius: 8
+        height: Theme.rowHeight
+        radius: Theme.radius
         color: row.current ? Theme.selected : hover.hovered ? Theme.hover : "transparent"
-        opacity: row.asleep && !row.current ? 0.45 : 1   // sleeping tabs are dimmed
+        // In light mode the open tab is a white pill; a hairline keeps it visible on light tints.
+        border.width: row.current && !Theme.dark ? 1 : 0
+        border.color: Theme.line
+        opacity: row.asleep && !row.current ? 0.5 : 1   // sleeping tabs are faded
         Behavior on color { ColorAnimation { duration: Theme.anim } }
 
         Drag.active: mouse.drag.active
         Drag.source: body
         Drag.hotSpot.y: height / 2
         HoverHandler { id: hover }
+        Accessible.role: Accessible.PageTab
+        Accessible.name: row.title || qsTr("New tab")
+        Accessible.selected: row.current
 
         MouseArea {
             id: mouse
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
+            cursorShape: Qt.PointingHandCursor
             drag.target: body
             drag.axis: Drag.YAxis
             drag.threshold: 6
@@ -61,25 +68,15 @@ Item {
             }
         }
 
-        // In a group: a thin line in the group's colour.
+        // In a group: a short bar in the group's colour.
         Rectangle {
             visible: row.group !== null
-            x: 0
-            width: 2
-            height: parent.height - 14
+            x: 3
+            width: 3
+            height: parent.height * 0.45
             anchors.verticalCenter: parent.verticalCenter
-            radius: 1
+            radius: 1.5
             color: row.group ? row.group.color : "transparent"
-        }
-        // The open tab: a small red dot.
-        Rectangle {
-            visible: row.current
-            x: 5
-            width: 4
-            height: 4
-            radius: 2
-            anchors.verticalCenter: parent.verticalCenter
-            color: Theme.accent
         }
 
         Item {
@@ -104,6 +101,7 @@ Item {
             DotLoader {
                 anchors.centerIn: parent
                 visible: row.loading
+                color: Theme.dim
             }
         }
 
@@ -115,8 +113,9 @@ Item {
             anchors.verticalCenter: parent.verticalCenter
             visible: !row.narrow
             text: row.title || qsTr("New tab")
-            color: row.current ? Theme.fg : Qt.darker(Theme.fg, Theme.dark ? 1.35 : 0.6)
-            font.pixelSize: 13
+            color: row.current ? Theme.fg : Theme.dim
+            font.pixelSize: Theme.px(13)
+            font.weight: row.current ? Font.Medium : Font.Normal
             elide: Text.ElideRight
         }
 
@@ -137,11 +136,12 @@ Item {
                 onClicked: row.muteToggled()
             }
             IconButton {
-                visible: hover.hovered || row.current
+                visible: hover.hovered
                 implicitWidth: 24
                 implicitHeight: 24
                 iconSize: 14
                 iconName: "close"
+                iconColor: Theme.dim
                 tip: qsTr("Close tab (Ctrl+W)")
                 onClicked: row.tabs.close(row.tabId)
             }

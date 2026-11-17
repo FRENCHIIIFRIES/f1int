@@ -6,6 +6,63 @@ import f1int
 // Small building blocks in f1int's style, shared by the panels and settings.
 // Use them as Ui.Toggle, Ui.Field, Ui.Pill, Ui.Segmented, Ui.Section, Ui.SettingRow.
 QtObject {
+    // Panel and dialog titles: dot-matrix, sentence case.
+    component Heading: Text {
+        color: Theme.fg
+        font.pixelSize: Theme.px(20)
+        font.weight: Font.DemiBold
+    }
+
+    // A small outlined tag, e.g. "weak" next to a password.
+    component Badge: Rectangle {
+        property alias text: badgeText.text
+        implicitWidth: badgeText.implicitWidth + 12
+        implicitHeight: 18
+        radius: 9
+        color: "transparent"
+        border.width: 1
+        border.color: Theme.accent
+        Text { id: badgeText; anchors.centerIn: parent; color: Theme.accent; font.pixelSize: Theme.px(10) }
+    }
+
+    // A hidden secret shown as a row of round dots (dot-matrix style).
+    component Dots: Row {
+        property int count: 10
+        property color color: Theme.dim
+        spacing: 3
+        Repeater {
+            model: parent.count
+            Rectangle { width: 5; height: 5; radius: 2.5; color: parent.color; anchors.verticalCenter: parent.verticalCenter }
+        }
+    }
+
+    // A slider: thin track, the filled part in the accent colour, round handle.
+    component Slide: Slider {
+        id: slide
+        implicitWidth: 160
+        implicitHeight: 24
+        background: Rectangle {
+            x: slide.leftPadding
+            y: slide.topPadding + slide.availableHeight / 2 - height / 2
+            width: slide.availableWidth
+            height: 4
+            radius: 2
+            color: Theme.field
+            Rectangle { width: slide.visualPosition * parent.width; height: parent.height; radius: 2; color: Theme.accent }
+        }
+        handle: Rectangle {
+            x: slide.leftPadding + slide.visualPosition * (slide.availableWidth - width)
+            y: slide.topPadding + slide.availableHeight / 2 - height / 2
+            width: 16
+            height: 16
+            radius: 8
+            color: "#ffffff"
+            border.width: 1
+            border.color: Qt.rgba(0, 0, 0, 0.15)
+        }
+        HoverHandler { cursorShape: Qt.PointingHandCursor }
+    }
+
     // On/off switch, like a phone's.
     component Toggle: Switch {
         id: toggle
@@ -24,7 +81,8 @@ QtObject {
                 radius: 10
                 y: 3
                 x: toggle.checked ? parent.width - width - 3 : 3
-                color: toggle.checked ? Theme.onAccent : Theme.fg
+                // White knob on the accent colour (dark knob only on a very light accent).
+                color: toggle.checked ? (Theme.accent.hslLightness > 0.7 ? "#000000" : "#ffffff") : Theme.fg
                 Behavior on x { NumberAnimation { duration: Theme.anim; easing.type: Easing.OutCubic } }
             }
         }
@@ -38,13 +96,13 @@ QtObject {
         color: Theme.fg
         placeholderTextColor: Theme.dim
         selectionColor: Theme.accent
-        selectedTextColor: Theme.onAccent
+        selectedTextColor: Theme.textOnAccent
         selectByMouse: true
-        font.pixelSize: 13
+        font.pixelSize: Theme.px(13)
         leftPadding: 12
         background: Rectangle {
-            radius: 8
-            color: Theme.bg
+            radius: Theme.radius
+            color: Theme.field
             border.width: 1
             border.color: field.activeFocus ? Theme.dim : Theme.line
         }
@@ -59,8 +117,8 @@ QtObject {
         rightPadding: 14
         contentItem: Text {
             text: pill.text
-            color: pill.primary ? Theme.onAccent : (pill.enabled ? Theme.fg : Theme.dim)
-            font.pixelSize: 12
+            color: pill.primary ? Theme.textOnAccent : (pill.enabled ? Theme.fg : Theme.dim)
+            font.pixelSize: Theme.px(12)
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
@@ -82,10 +140,8 @@ QtObject {
         signal picked(var value)
         implicitWidth: row.implicitWidth + 6
         implicitHeight: 30
-        radius: 15
-        color: Theme.bg
-        border.width: 1
-        border.color: Theme.line
+        radius: Math.min(15, Theme.radius + 4)
+        color: Theme.field
         Row {
             id: row
             anchors.centerIn: parent
@@ -97,10 +153,13 @@ QtObject {
                     readonly property bool on: seg.value === modelData.value
                     width: label.implicitWidth + 22
                     height: 24
-                    radius: 12
-                    color: on ? Theme.accent : hover.hovered ? Theme.hover : "transparent"
+                    radius: Math.min(12, Theme.radius + 2)
+                    // The picked choice is a soft raised pill (calm), not a loud accent fill.
+                    color: on ? (Theme.dark ? Qt.rgba(1, 1, 1, 0.16) : "#ffffff") : hover.hovered ? Theme.hover : "transparent"
+                    border.width: on && !Theme.dark ? 1 : 0
+                    border.color: Theme.line
                     Behavior on color { ColorAnimation { duration: Theme.anim } }
-                    HoverHandler { id: hover }
+                    HoverHandler { id: hover; cursorShape: Qt.PointingHandCursor }
                     Accessible.role: Accessible.RadioButton
                     Accessible.name: modelData.label
                     Accessible.checked: on
@@ -108,8 +167,9 @@ QtObject {
                         id: label
                         anchors.centerIn: parent
                         text: parent.modelData.label
-                        color: parent.on ? Theme.onAccent : Theme.fg
-                        font.pixelSize: 12
+                        color: parent.on ? Theme.fg : Theme.dim
+                        font.pixelSize: Theme.px(12)
+                        font.weight: parent.on ? Font.Medium : Font.Normal
                     }
                     MouseArea { anchors.fill: parent; onClicked: seg.picked(parent.modelData.value) }
                 }
@@ -124,16 +184,15 @@ QtObject {
         Layout.fillWidth: true
         spacing: 8
         Text {
-            text: parent.title.toUpperCase()
+            text: parent.title
             color: Theme.dim
-            font.pixelSize: 11
-            font.letterSpacing: 1.5
+            font.pixelSize: Theme.px(12)
             Layout.leftMargin: 4
         }
         Rectangle {
             Layout.fillWidth: true
             implicitHeight: box.implicitHeight
-            radius: 14
+            radius: Theme.cardRadius
             color: Theme.surface
             border.width: 1
             border.color: Theme.line
@@ -163,8 +222,8 @@ QtObject {
             anchors.rightMargin: 12
             anchors.verticalCenter: parent.verticalCenter
             spacing: 2
-            Text { text: settingRow.label; color: Theme.fg; font.pixelSize: 13; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Text { visible: settingRow.hint !== ""; text: settingRow.hint; color: Theme.dim; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Text { text: settingRow.label; color: Theme.fg; font.pixelSize: Theme.px(13); Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Text { visible: settingRow.hint !== ""; text: settingRow.hint; color: Theme.dim; font.pixelSize: Theme.px(11); Layout.fillWidth: true; wrapMode: Text.Wrap }
         }
         Item {
             id: slot

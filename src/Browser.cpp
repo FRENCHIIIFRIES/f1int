@@ -1,4 +1,5 @@
 #include "Browser.h"
+#include "DeviceAuth.h"
 #include "MemoryStats.h"
 #include "UrlInput.h"
 
@@ -7,6 +8,8 @@
 #include <QDir>
 #include <QGuiApplication>
 #include <QStyleHints>
+#include <QQuickWindow>
+#include <QUuid>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -21,6 +24,7 @@
 #ifdef Q_OS_WIN
 #define NOMINMAX   // stop windows.h from defining min/max macros that clash with Qt
 #include <windows.h>
+#include <dwmapi.h>   // window backdrop (frosted glass)
 #endif
 
 Browser::Browser(QObject *parent)
@@ -31,6 +35,11 @@ Browser::Browser(QObject *parent)
 {
     QDir().mkpath(m_dataDir);
     m_library = new Library(m_dataDir + QStringLiteral("/library.db"), this);
+    // Passwords: test runs ("f1int-test") get their own keychain entry, never the real one.
+    m_vault = new PasswordVault(m_dataDir + QStringLiteral("/passwords.vault"),
+                                QCoreApplication::applicationName() + QStringLiteral("-vault-key"), this);
+    m_vault->setProperty("autoLockMinutes", setting(QStringLiteral("passwords/autoLockMinutes"), 15).toInt());
+    m_nonce = QString::fromLatin1(QUuid::createUuid().toRfc4122().toHex());   // new secret every start
 
     // One shared profile for all normal tabs, saved on disk (cookies, cache, site logins).
     // A named profile is saved; an unnamed one is thrown away on exit (used for incognito).
@@ -129,6 +138,17 @@ void Browser::setSetting(const QString &key, const QVariant &value)
     m_settings.setValue(key, value);
     if (key == QLatin1String("privacy/adblock"))
         m_adBlocker->enabled = value.toBool();
+    if (key == QLatin1String("appearance/theme"))
+        applyColorScheme();
+    if (key == QLatin1String("passwords/autoLockMinutes"))
+        m_vault->setProperty("autoLockMinutes", value.toInt());
+    ++m_settingsRevision;
+    emit settingChanged();
+}
+
+void Browser::resetSetting(const QString &key)
+{
+    m_settings.remove(key);
     if (key == QLatin1String("appearance/theme"))
         applyColorScheme();
     ++m_settingsRevision;
@@ -268,6 +288,46 @@ void Browser::loadFilterLists()
             }
         });
     }
+}
+
+QString Browser::passwordScript() const
+{
+    QFile f(QStringLiteral(":/scripts/passwords.js"));
+    if (!f.open(QIODevice::ReadOnly))
+        return {};
+    return QString::fromUtf8(f.readAll()).replace(QLatin1String("%NONCE%"), m_nonce);
+}
+
+void Browser::askDevice(QQuickWindow *window, const QString &purpose)
+{
+    const QString reason = purpose == QLatin1String("unlock") ? tr("Unlock your f1int passwords")
+                                                              : tr("Confirm it's you to see this password");
+    DeviceAuth::request(window, reason, [this, purpose](bool ok, const QString &error) {
+        if (ok && purpose == QLatin1String("unlock"))
+            ok = m_vault->unlockWithKeychain();
+        else if (ok)
+            m_vault->markVerified();
+        emit deviceAuthFinished(purpose, ok, ok ? QString() : error);
+    });
+}
+
+bool Browser::applyBackdrop(QQuickWindow *window, bool dark)
+{
+#ifdef Q_OS_WIN
+    if (!window)
+        return false;
+    const HWND hwnd = HWND(window->winId());
+    const BOOL useDark = dark;
+    DwmSetWindowAttribute(hwnd, 20 /* DWMWA_USE_IMMERSIVE_DARK_MODE */, &useDark, sizeof useDark);
+    // Let the backdrop show through the whole window (Qt draws on top of it with transparency).
+    const MARGINS everywhere{ -1, -1, -1, -1 };
+    DwmExtendFrameIntoClientArea(hwnd, &everywhere);
+    const int acrylic = 3;   // DWMSBT_TRANSIENTWINDOW: blurred, tinted desktop behind the window
+    return SUCCEEDED(DwmSetWindowAttribute(hwnd, 38 /* DWMWA_SYSTEMBACKDROP_TYPE, Windows 11 */, &acrylic, sizeof acrylic));
+#else
+    Q_UNUSED(window) Q_UNUSED(dark)
+    return false;   // shortcut: no macOS vibrancy yet (needs NSVisualEffectView); solid colour instead
+#endif
 }
 
 QVariantMap Browser::battery() const

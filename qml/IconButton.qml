@@ -13,6 +13,8 @@ Button {
     implicitWidth: 30
     implicitHeight: 30
     focusPolicy: Qt.NoFocus        // clicking it shouldn't steal focus from the page
+    opacity: enabled ? 1 : 0.35    // disabled buttons fade right back
+    HoverHandler { cursorShape: Qt.PointingHandCursor }
     Accessible.name: tip
     ToolTip.text: tip
     ToolTip.visible: hovered && tip !== ""
@@ -23,11 +25,11 @@ Button {
             anchors.centerIn: parent
             glyph: button.iconName
             sourceSize: Qt.size(button.iconSize, button.iconSize)
-            color: button.enabled ? button.iconColor : Theme.dim
+            color: button.iconColor
         }
     }
     background: Rectangle {
-        radius: 8
+        radius: Math.max(4, Theme.radius - 2)
         color: button.down ? Theme.press : button.hovered ? Theme.hover : "transparent"
         Behavior on color { ColorAnimation { duration: Theme.anim } }
     }

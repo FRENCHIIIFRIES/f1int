@@ -3,8 +3,11 @@
 #   powershell -ExecutionPolicy Bypass -File tools\ui-test.ps1 tests\ui\tabbar.qml
 param([string]$Script = "$PSScriptRoot\..\tests\ui\tabbar.qml",
       [string[]]$Urls = @('https://www.wikipedia.org', 'https://github.com', 'https://news.ycombinator.com', 'https://www.bbc.co.uk'),
-      [int]$Timeout = 90)
+      [int]$Timeout = 90,
+      [switch]$Screen)   # capture the screen (shows the frosted glass) instead of the window's own drawing
 $ErrorActionPreference = 'Stop'
+# "powershell -File" hands a list over as one "a,b,c" string: split it back into URLs.
+$Urls = @($Urls | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 . "$PSScriptRoot\qtenv.ps1"
 Add-Type -AssemblyName System.Drawing
 Add-Type @'
@@ -14,6 +17,7 @@ public static class Shot {
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out R r);
   [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h, IntPtr dc, uint f);
   [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
 }
 '@
 [void][Shot]::SetProcessDPIAware()
@@ -38,8 +42,15 @@ while ((Get-Date) -lt $deadline -and -not $p.HasExited) {
             $p.Refresh(); $h = $p.MainWindowHandle
             $r = New-Object Shot+R; [void][Shot]::GetWindowRect($h, [ref]$r)
             $bmp = New-Object System.Drawing.Bitmap ($r.Ri - $r.L), ($r.B - $r.T)
-            $g = [System.Drawing.Graphics]::FromImage($bmp); $dc = $g.GetHdc()
-            [void][Shot]::PrintWindow($h, $dc, 2); $g.ReleaseHdc($dc); $g.Dispose()
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            if ($Screen) {
+                # What's really on screen, including the frosted-glass backdrop (window must be in front).
+                [void][Shot]::SetForegroundWindow($h); Start-Sleep -Milliseconds 300
+                $g.CopyFromScreen($r.L, $r.T, 0, 0, $bmp.Size)
+            } else {
+                $dc = $g.GetHdc(); [void][Shot]::PrintWindow($h, $dc, 2); $g.ReleaseHdc($dc)
+            }
+            $g.Dispose()
             $file = Join-Path $out "$($Matches[1]).png"; $bmp.Save($file); $bmp.Dispose()
             "shot: $file"
         } elseif ($line -match 'DONE') { $line; $deadline = Get-Date }

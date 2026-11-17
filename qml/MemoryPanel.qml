@@ -57,7 +57,7 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            Text { text: qsTr("MEMORY"); color: Theme.fg; font.family: Theme.dotFont; font.pixelSize: 24; font.weight: Font.Black }
+            Ui.Heading { text: qsTr("Memory") }
             Item { Layout.fillWidth: true }
             IconButton { iconName: "close"; tip: qsTr("Close"); onClicked: panel.closeRequested() }
         }
@@ -65,8 +65,8 @@ Rectangle {
         // Big dot-matrix total.
         RowLayout {
             spacing: 6
-            Text { text: panel.mb(panel.info.total); color: Theme.fg; font.family: Theme.dotFont; font.pixelSize: 64; font.weight: Font.Black }
-            Text { text: "MB"; color: Theme.dim; font.family: Theme.dotFont; font.pixelSize: 22; Layout.alignment: Qt.AlignBottom; Layout.bottomMargin: 10 }
+            Text { text: panel.mb(panel.info.total); color: Theme.fg; font.family: Theme.numberFont; font.pixelSize: Theme.px(64); font.weight: Font.DemiBold }
+            Text { text: "MB"; color: Theme.dim; font.family: Theme.numberFont; font.pixelSize: Theme.px(22); Layout.alignment: Qt.AlignBottom; Layout.bottomMargin: 10 }
         }
         Text {
             Layout.fillWidth: true
@@ -74,7 +74,7 @@ Rectangle {
             text: qsTr("All of f1int: the app (%1 MB) plus %2 Chromium helper processes.")
                   .arg(panel.mb(panel.info.browser)).arg(Math.max(0, Object.keys(panel.info.processes).length - 1))
             color: Theme.dim
-            font.pixelSize: 12
+            font.pixelSize: Theme.px(12)
         }
         DotGrid { Layout.fillWidth: true; Layout.preferredHeight: 18 }
 
@@ -95,14 +95,14 @@ Rectangle {
                     ColumnLayout {
                         spacing: 1
                         Layout.fillWidth: true
-                        Text { text: modelData.title; color: Theme.fg; font.pixelSize: 13; elide: Text.ElideRight; Layout.fillWidth: true }
-                        Text { text: modelData.state; color: modelData.state === qsTr("Active") ? Theme.accent : Theme.dim; font.pixelSize: 11 }
+                        Text { text: modelData.title; color: Theme.fg; font.pixelSize: Theme.px(13); elide: Text.ElideRight; Layout.fillWidth: true }
+                        Text { text: modelData.state; color: modelData.state === qsTr("Active") ? Theme.accent : Theme.dim; font.pixelSize: Theme.px(11) }
                     }
                     Text {
                         text: modelData.bytes > 0 ? "~" + panel.mb(modelData.bytes) + " MB" : "0 MB"
                         color: Theme.fg
-                        font.family: Theme.dotFont
-                        font.pixelSize: 16
+                        font.family: Theme.numberFont
+                        font.pixelSize: Theme.px(16)
                         font.weight: Font.Bold
                     }
                 }
@@ -114,7 +114,7 @@ Rectangle {
             Layout.fillWidth: true
             text: qsTr("%1 ad and tracker requests blocked").arg(Browser.blockedTotal)
             color: Theme.dim
-            font.pixelSize: 12
+            font.pixelSize: Theme.px(12)
         }
         Ui.Pill {
             Layout.fillWidth: true

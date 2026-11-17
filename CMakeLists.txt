@@ -10,6 +10,33 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Svg Sql Network WebEngineQuick Test)
 qt_standard_project_setup(REQUIRES 6.8)   # turns on Qt's code generators (moc etc.)
 
+# Mbed TLS (Arm, Apache-2.0): the password vault's AES-256-GCM and PBKDF2.
+# Downloaded once at configure time; the checksum makes sure it's the official release.
+include(FetchContent)
+set(ENABLE_PROGRAMS OFF CACHE BOOL "" FORCE)      # only the library, not its tools...
+set(ENABLE_TESTING OFF CACHE BOOL "" FORCE)       # ...or its test suite
+set(GEN_FILES OFF CACHE BOOL "" FORCE)            # release archives already contain generated files
+set(MBEDTLS_FATAL_WARNINGS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(mbedtls
+    URL https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-3.6.8/mbedtls-3.6.8.tar.bz2
+    URL_HASH SHA256=bc54b818e87f49c0b3281dd85d24adaede0e63b4e822e3fbd49c005a38b9595b
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE)
+FetchContent_MakeAvailable(mbedtls)
+
+# The password vault as a small library, shared by the app and its unit test.
+add_library(vault STATIC
+    src/vault/Crypto.h src/vault/Crypto.cpp
+    src/vault/Keychain.h src/vault/Keychain.cpp
+    src/vault/PasswordVault.h src/vault/PasswordVault.cpp
+)
+target_include_directories(vault PUBLIC src/vault)
+target_link_libraries(vault PUBLIC Qt6::Gui Qt6::Qml PRIVATE mbedcrypto)
+if(WIN32)
+    target_link_libraries(vault PRIVATE advapi32)   # Windows Credential Manager
+elseif(APPLE)
+    target_link_libraries(vault PRIVATE "-framework Security" "-framework CoreFoundation")
+endif()
+
 # WIN32 = no black console window on Windows. MACOSX_BUNDLE = build an .app on Mac.
 qt_add_executable(f1int WIN32 MACOSX_BUNDLE
     src/main.cpp
@@ -21,8 +48,17 @@ qt_add_executable(f1int WIN32 MACOSX_BUNDLE
     src/MemoryStats.h src/MemoryStats.cpp
 )
 target_compile_definitions(f1int PRIVATE F1INT_VERSION="${PROJECT_VERSION}")
+# Windows Hello / Touch ID for unlocking passwords.
+target_sources(f1int PRIVATE src/DeviceAuth.h src/DeviceAuth.cpp)
 if(WIN32)
     target_sources(f1int PRIVATE resources/f1int.rc)   # the .exe icon
+    target_link_libraries(f1int PRIVATE windowsapp dwmapi)   # Windows Hello; frosted-glass window
+    # Microsoft's C++/WinRT headers need C++20 (coroutines); only this one file uses them.
+    set_source_files_properties(src/DeviceAuth.cpp PROPERTIES COMPILE_OPTIONS "/std:c++20")
+elseif(APPLE)
+    target_sources(f1int PRIVATE src/DeviceAuth_mac.mm)
+    set_source_files_properties(src/DeviceAuth_mac.mm PROPERTIES COMPILE_FLAGS "-fobjc-arc")
+    target_link_libraries(f1int PRIVATE "-framework LocalAuthentication")
 endif()
 
 # Qt's generated QML registration code includes our headers by bare name ("Browser.h").
@@ -55,6 +91,7 @@ qt_add_qml_module(f1int
         qml/MemoryPanel.qml
         qml/ColorWheel.qml
         qml/NewTabPage.qml
+        qml/PasswordsPanel.qml
 )
 
 # Icons, logo, dot-matrix font and the starter ad-block list, built into the program
@@ -64,11 +101,12 @@ qt_add_resources(f1int assets
     PREFIX /
     BASE resources
     FILES ${icon_files} resources/logo/f1int.svg resources/fonts/Doto.ttf resources/filters/builtin.txt
+          resources/scripts/passwords.js
 )
 
 # Dynamic linking (the default) keeps us within Qt's LGPL licence.
 # Svg: draws our icons. Sql: bookmarks/history. Network: filter list updates.
-target_link_libraries(f1int PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::Sql Qt6::Network Qt6::WebEngineQuick)
+target_link_libraries(f1int PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::Sql Qt6::Network Qt6::WebEngineQuick vault)
 
 # Mac .app details (shown in Finder / "About").
 set_target_properties(f1int PROPERTIES
@@ -142,6 +180,10 @@ qt_add_executable(tst_library tests/tst_library.cpp src/Library.cpp src/Library.
 target_include_directories(tst_library PRIVATE src)
 target_link_libraries(tst_library PRIVATE Qt6::Test Qt6::Sql Qt6::Qml)
 add_test(NAME library COMMAND tst_library)
+
+qt_add_executable(tst_vault tests/tst_vault.cpp)
+target_link_libraries(tst_vault PRIVATE Qt6::Test vault)
+add_test(NAME vault COMMAND tst_vault)
 
 qt_add_executable(tst_adblocker tests/tst_adblocker.cpp src/AdBlocker.cpp src/AdBlocker.h)
 target_include_directories(tst_adblocker PRIVATE src)

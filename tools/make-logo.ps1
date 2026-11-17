@@ -17,17 +17,17 @@ for ($y = 0; $y -lt $Cells; $y++) { for ($x = 0; $x -lt $Cells; $x++) { $grid[$x
 
 # ---- steel striker: a thick ring (centre 20,11) open towards the bottom left ----
 for ($y = 0; $y -lt $Cells; $y++) { for ($x = 0; $x -lt $Cells; $x++) {
-    $dx = $x + 0.5 - 20.5; $dy = $y + 0.5 - 11.5
+    $dx = $x + 0.5 - 12.5; $dy = $y + 0.5 - 12.0   # the C sits upper left
     $d = [math]::Sqrt($dx * $dx + $dy * $dy)
     $a = [math]::Atan2($dy, $dx) * 180 / [math]::PI          # 0 = right, 90 = down
-    if ($d -ge 5.2 -and $d -le 8.3 -and -not ($a -gt 105 -and $a -lt 165)) {
+    if ($d -ge 5.0 -and $d -le 8.6 -and -not ($a -gt -5 -and $a -lt 62)) {   # open towards the flint (lower right)
         $light = -($dx + $dy) / ($d + 0.001)                 # lit from the top left
         $grid[$x, $y] = if ($d -lt 6.2 -or $light -lt -0.55) { 'x' } elseif ($light -gt 0.25) { 'w' } else { 's' }
     }
 } }
 
 # ---- flint shard: an angular polygon, shaded with a bright upper-left edge ----
-$poly = @(@(4, 22), @(9, 15), @(14, 17), @(17, 22), @(14, 28), @(7, 29), @(3, 26))
+$poly = @(@(17, 21), @(21, 16), @(26, 17), @(29, 22), @(27, 28), @(20, 29), @(16, 26))   # a chunky lump, lower right
 function Inside($px, $py) {
     $in = $false
     $j = $poly.Count - 1
@@ -41,27 +41,27 @@ function Inside($px, $py) {
 for ($y = 0; $y -lt $Cells; $y++) { for ($x = 0; $x -lt $Cells; $x++) {
     if (Inside ($x + 0.5) ($y + 0.5)) {
         $edge = -not (Inside ($x - 0.5) ($y - 0.5))           # pixel just inside the top-left edge
-        $t = ($x + $y - 22) / 18.0                            # 0 = top left ... 1 = bottom right
+        $t = ($x + $y - 37) / 18.0                            # 0 = top left ... 1 = bottom right
         $grid[$x, $y] = if ($edge) { 'h' } elseif ($t -lt 0.35) { 'm' } else { 'd' }
     }
 } }
 # a facet line across the shard
-foreach ($p in @(@(9, 18), @(10, 19), @(11, 20), @(12, 21))) { $grid[$p[0], $p[1]] = 'm' }
+foreach ($p in @(@(21, 20), @(22, 21), @(23, 22), @(24, 22))) { $grid[$p[0], $p[1]] = 'm' }
 
 # ---- sparks where steel meets flint ----
 $sparks = @{
-    'y' = @(@(14, 15), @(15, 14), @(15, 15))                                     # white-hot core
-    'r' = @(@(17, 13), @(13, 12), @(18, 16), @(16, 18), @(11, 14), @(19, 11))   # sparks
-    'e' = @(@(21, 18), @(10, 10), @(20, 14), @(13, 9), @(22, 21))               # embers flying off
+    'y' = @(@(18, 17), @(19, 16), @(19, 17))                                     # white-hot core
+    'r' = @(@(21, 14), @(17, 15), @(22, 17), @(20, 19), @(16, 18), @(23, 12))   # sparks
+    'e' = @(@(25, 13), @(15, 20), @(24, 10), @(14, 16), @(26, 15))               # embers flying off
 }
 foreach ($c in $sparks.Keys) { foreach ($p in $sparks[$c]) { $grid[$p[0], $p[1]] = [char]$c } }
 
 $out = Join-Path $PSScriptRoot '..\resources\logo'
 New-Item -ItemType Directory -Force $out | Out-Null
 
-# ---- SVG: one square per pixel on a rounded black tile ----
+# ---- SVG: one square per pixel, transparent background ----
 $svg = "<svg xmlns=`"http://www.w3.org/2000/svg`" viewBox=`"0 0 $Cells $Cells`" shape-rendering=`"crispEdges`">"
-$svg += "<rect width=`"$Cells`" height=`"$Cells`" rx=`"7`" fill=`"$($colours['k'])`"/>"
+# transparent background: no tile behind the drawing
 for ($y = 0; $y -lt $Cells; $y++) { for ($x = 0; $x -lt $Cells; $x++) {
     $c = [string]$grid[$x, $y]
     if ($c -ne '.') { $svg += "<rect x=`"$x`" y=`"$y`" width=`"1`" height=`"1`" fill=`"$($colours[$c])`"/>" }
@@ -79,7 +79,7 @@ foreach ($n in 16, 32, 48, 64, 128, 256, 512) {
     $path = New-Object System.Drawing.Drawing2D.GraphicsPath   # rounded tile
     $path.AddArc(0, 0, $d, $d, 180, 90); $path.AddArc($n - $d - 1, 0, $d, $d, 270, 90)
     $path.AddArc($n - $d - 1, $n - $d - 1, $d, $d, 0, 90); $path.AddArc(0, $n - $d - 1, $d, $d, 90, 90); $path.CloseFigure()
-    $g.FillPath((New-Object System.Drawing.SolidBrush ([System.Drawing.ColorTranslator]::FromHtml($colours['k']))), $path)
+    # (no tile: transparent background)
     $g.SmoothingMode = 'None'
     if ($n -lt $Cells) { $g.InterpolationMode = 'HighQualityBicubic' }
     $px = $n / $Cells

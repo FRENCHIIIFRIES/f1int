@@ -51,8 +51,8 @@ Rectangle {
         Text {
             text: field.text === "" ? "" : bar.matches === 0 ? qsTr("No matches") : bar.current + "/" + bar.matches
             color: bar.matches === 0 && field.text !== "" ? Theme.accent : Theme.fg
-            font.family: bar.matches > 0 ? Theme.dotFont : ""
-            font.pixelSize: bar.matches > 0 ? 16 : 12
+            font.family: Theme.numberFont
+            font.pixelSize: Theme.px(12)
             font.weight: Font.Bold
         }
         Item { Layout.fillWidth: true }

@@ -17,8 +17,8 @@ Rectangle {
 
     // ---------- settings (one JSON value, so it can be exported/imported as a whole) ----------
     readonly property var defaults: ({
-        background: { type: "dots", color: "#000000", image: "", dim: 0.55, density: 22, opacity: 0.18 },
-        clock:      { on: true,  pos: "center", size: "M", h24: true, seconds: false, dotFont: true },
+        background: { type: "none", color: "#000000", image: "", dim: 0.55, density: 22, opacity: 0.18 },
+        clock:      { on: false,  pos: "center", size: "M", h24: true, seconds: false, dotFont: true },
         date:       { on: false, pos: "center", size: "S" },
         search:     { on: true,  pos: "center", size: "M", autofocus: true },
         shortcuts:  { on: false, pos: "center", size: "M", items: [] },
@@ -49,7 +49,7 @@ Rectangle {
         if (view && url.toString() !== "") { view.url = url; view.forceActiveFocus() }
     }
 
-    color: cfg.background.type === "solid" ? cfg.background.color : Theme.bg
+    color: cfg.background.type === "solid" ? cfg.background.color : cfg.background.type === "none" ? "transparent" : Theme.bg
 
     // ---------- background ----------
     Image {
@@ -142,19 +142,18 @@ Rectangle {
             Timer { interval: 1000; running: true; repeat: true; onTriggered: parent.now = new Date() }
             text: Qt.formatTime(now, (page.cfg.clock.h24 ? "HH:mm" : "h:mm") + (page.cfg.clock.seconds ? ":ss" : "") + (page.cfg.clock.h24 ? "" : " AP"))
             color: page.ink
-            font.family: page.cfg.clock.dotFont ? Theme.dotFont : "Consolas, Menlo, monospace"
-            font.pixelSize: 64 * page.scale(page.cfg.clock.size)
-            font.weight: Font.Black
+            font.family: page.cfg.clock.dotFont ? "Doto" : ""
+            font.pixelSize: Theme.px(64 * page.scale(page.cfg.clock.size))
+            font.weight: Font.DemiBold
         }
     }
     Component {
         id: dateWidget
         Text {
-            text: new Date().toLocaleDateString(Qt.locale(), "dddd d MMMM").toUpperCase()
+            text: new Date().toLocaleDateString(Qt.locale(), "dddd d MMMM")
             color: page.ink
             opacity: 0.7
-            font.pixelSize: 13 * page.scale(page.cfg.date.size)
-            font.letterSpacing: 2
+            font.pixelSize: Theme.px(14 * page.scale(page.cfg.date.size))
         }
     }
     Component {
@@ -164,9 +163,9 @@ Rectangle {
             width: 460 * page.scale(page.cfg.search.size)
             height: 40 * Math.sqrt(page.scale(page.cfg.search.size))
             radius: height / 2
-            color: page.cfg.background.type === "image" ? "#66000000" : Theme.surface
+            color: page.cfg.background.type === "solid" ? Theme.surface : Theme.field
             border.width: 1
-            border.color: field.activeFocus ? Theme.accent : Theme.line
+            border.color: field.activeFocus ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.55) : Theme.line
             Icon { x: 16; anchors.verticalCenter: parent.verticalCenter; glyph: "search"; color: Theme.dim }
             TextField {
                 id: field
@@ -178,7 +177,7 @@ Rectangle {
                 placeholderText: qsTr("Search %1 or type an address").arg(Browser.searchEngines.find(e => e.template === Browser.setting("search/template", "https://www.google.com/search?q=%s"))?.name ?? "")
                 placeholderTextColor: Theme.dim
                 selectionColor: Theme.accent
-                font.pixelSize: 14
+                font.pixelSize: Theme.px(14)
                 onAccepted: page.go(text)
                 Component.onCompleted: if (page.cfg.search.autofocus) Qt.callLater(forceActiveFocus)
             }
@@ -207,9 +206,9 @@ Rectangle {
                             anchors.centerIn: parent
                             text: (modelData.title || modelData.url.replace(/^https?:\/\/(www\.)?/, "")).charAt(0).toUpperCase()
                             color: page.ink
-                            font.family: Theme.dotFont
-                            font.pixelSize: 22 * parent.parent.s
-                            font.weight: Font.Black
+                            font.family: Theme.numberFont
+                            font.pixelSize: Theme.px(22 * parent.parent.s)
+                            font.weight: Font.DemiBold
                         }
                         MouseArea {
                             anchors.fill: parent
@@ -229,7 +228,7 @@ Rectangle {
                         text: modelData.title
                         color: page.ink
                         opacity: 0.7
-                        font.pixelSize: 11
+                        font.pixelSize: Theme.px(11)
                         elide: Text.ElideRight
                     }
                 }
@@ -242,7 +241,7 @@ Rectangle {
             width: 360 * page.scale(page.cfg.note.size)
             height: 120 * page.scale(page.cfg.note.size)
             radius: 14
-            color: page.cfg.background.type === "image" ? "#66000000" : Theme.surface
+            color: page.cfg.background.type === "solid" ? Theme.surface : Theme.field
             border.width: 1
             border.color: Theme.line
             TextArea {
@@ -254,7 +253,7 @@ Rectangle {
                 color: page.ink
                 wrapMode: TextArea.Wrap
                 background: null
-                font.pixelSize: 13
+                font.pixelSize: Theme.px(13)
                 onTextChanged: saveNote.restart()
                 Timer { id: saveNote; interval: 600; onTriggered: Browser.setSetting("newtab/note", parent.text) }
             }
@@ -266,7 +265,7 @@ Rectangle {
             width: 340 * page.scale(page.cfg.todo.size)
             height: todoColumn.implicitHeight + 24
             radius: 14
-            color: page.cfg.background.type === "image" ? "#66000000" : Theme.surface
+            color: page.cfg.background.type === "solid" ? Theme.surface : Theme.field
             border.width: 1
             border.color: Theme.line
             Column {
@@ -284,7 +283,7 @@ Rectangle {
                             width: 16; height: 16; radius: 4
                             color: modelData.done ? Theme.accent : "transparent"
                             border.width: 1; border.color: modelData.done ? Theme.accent : Theme.dim
-                            Icon { anchors.centerIn: parent; visible: modelData.done; glyph: "check"; sourceSize: Qt.size(12, 12); color: Theme.onAccent }
+                            Icon { anchors.centerIn: parent; visible: modelData.done; glyph: "check"; sourceSize: Qt.size(12, 12); color: Theme.textOnAccent }
                             MouseArea {
                                 anchors.fill: parent
                                 onClicked: {
@@ -299,7 +298,7 @@ Rectangle {
                             color: page.ink
                             opacity: modelData.done ? 0.4 : 1
                             font.strikeout: modelData.done
-                            font.pixelSize: 13
+                            font.pixelSize: Theme.px(13)
                             width: 260
                             elide: Text.ElideRight
                             MouseArea {   // right-click deletes
@@ -316,7 +315,7 @@ Rectangle {
                     placeholderTextColor: Theme.dim
                     color: page.ink
                     background: null
-                    font.pixelSize: 13
+                    font.pixelSize: Theme.px(13)
                     onAccepted: {
                         if (text.trim() === "") return
                         page.set("todo", "items", page.cfg.todo.items.concat([{ text: text.trim(), done: false }]))
@@ -335,19 +334,25 @@ Rectangle {
             function refresh() { info = Browser.memoryInfo(); battery = Browser.battery() }
             Component.onCompleted: refresh()
             Timer { interval: 5000; running: true; repeat: true; onTriggered: parent.refresh() }
+            Icon {   // charging: a monochrome bolt (not a colour emoji)
+                visible: parent.battery.percent >= 0 && parent.battery.charging
+                glyph: "bolt"
+                color: page.ink
+                anchors.verticalCenter: parent.verticalCenter
+            }
             Text {
                 visible: parent.battery.percent >= 0
-                text: (parent.battery.charging ? "⚡" : "") + parent.battery.percent + "%"
+                text: parent.battery.percent + "%"
                 color: page.ink
-                font.family: Theme.dotFont
-                font.pixelSize: 20 * page.scale(page.cfg.status.size)
+                font.family: Theme.numberFont
+                font.pixelSize: Theme.px(20 * page.scale(page.cfg.status.size))
                 font.weight: Font.Bold
             }
             Text {
                 text: Math.round((parent.info.total || 0) / 1048576) + " MB"
                 color: page.ink
-                font.family: Theme.dotFont
-                font.pixelSize: 20 * page.scale(page.cfg.status.size)
+                font.family: Theme.numberFont
+                font.pixelSize: Theme.px(20 * page.scale(page.cfg.status.size))
                 font.weight: Font.Bold
             }
         }
@@ -359,8 +364,8 @@ Rectangle {
             property string reading: page.cfg.weather.city === "" ? qsTr("Set a city in Customise") : "…"
             text: reading
             color: page.ink
-            font.family: Theme.dotFont
-            font.pixelSize: 20 * page.scale(page.cfg.weather.size)
+            font.family: Theme.numberFont
+            font.pixelSize: Theme.px(20 * page.scale(page.cfg.weather.size))
             font.weight: Font.Bold
             function get(url, done) {
                 const x = new XMLHttpRequest()
@@ -375,7 +380,7 @@ Rectangle {
                     const r = g.results[0], f = page.cfg.weather.unit === "F"
                     get("https://api.open-meteo.com/v1/forecast?current=temperature_2m&latitude=" + r.latitude + "&longitude=" + r.longitude
                         + (f ? "&temperature_unit=fahrenheit" : ""), (w) => {
-                        reading = Math.round(w.current.temperature_2m) + "°" + (f ? "F" : "C") + "  " + r.name.toUpperCase()
+                        reading = Math.round(w.current.temperature_2m) + "°" + (f ? "F" : "C") + "  " + r.name
                     })
                 })
             }
@@ -437,7 +442,7 @@ Rectangle {
                 spacing: 18
                 RowLayout {
                     Layout.fillWidth: true
-                    Text { text: qsTr("CUSTOMISE"); color: Theme.fg; font.family: Theme.dotFont; font.pixelSize: 22; font.weight: Font.Black }
+                    Ui.Heading { text: qsTr("Customise"); font.pixelSize: Theme.px(22) }
                     Item { Layout.fillWidth: true }
                     IconButton { iconName: "close"; onClicked: customise.visible = false }
                 }
@@ -447,7 +452,7 @@ Rectangle {
                     Ui.SettingRow {
                         label: qsTr("Style")
                         Ui.Segmented {
-                            options: [{ label: qsTr("Dots"), value: "dots" }, { label: qsTr("Solid"), value: "solid" }, { label: qsTr("Picture"), value: "image" }]
+                            options: [{ label: qsTr("Glass"), value: "none" }, { label: qsTr("Dots"), value: "dots" }, { label: qsTr("Solid"), value: "solid" }, { label: qsTr("Picture"), value: "image" }]
                             value: page.cfg.background.type
                             onPicked: (v) => v === "image" && page.cfg.background.image === "" ? imageDialog.open() : page.set("background", "type", v)
                         }
@@ -460,7 +465,7 @@ Rectangle {
                     Ui.SettingRow {
                         visible: page.cfg.background.type === "image"
                         label: qsTr("Dim picture")
-                        Slider { width: 140; from: 0; to: 0.9; value: page.cfg.background.dim; onMoved: page.set("background", "dim", value) }
+                        Ui.Slide { width: 140; from: 0; to: 0.9; value: page.cfg.background.dim; onMoved: page.set("background", "dim", value) }
                     }
                     Ui.SettingRow {
                         visible: page.cfg.background.type === "solid"
@@ -470,13 +475,13 @@ Rectangle {
                     Ui.SettingRow {
                         visible: page.cfg.background.type === "dots"
                         label: qsTr("Dot spacing")
-                        Slider { width: 140; from: 10; to: 48; value: page.cfg.background.density; onMoved: page.set("background", "density", Math.round(value)) }
+                        Ui.Slide { width: 140; from: 10; to: 48; value: page.cfg.background.density; onMoved: page.set("background", "density", Math.round(value)) }
                     }
                     Ui.SettingRow {
                         visible: page.cfg.background.type === "dots"
                         label: qsTr("Dot strength")
                         last: true
-                        Slider { width: 140; from: 0.04; to: 0.6; value: page.cfg.background.opacity; onMoved: page.set("background", "opacity", value) }
+                        Ui.Slide { width: 140; from: 0.04; to: 0.6; value: page.cfg.background.opacity; onMoved: page.set("background", "opacity", value) }
                     }
                 }
 

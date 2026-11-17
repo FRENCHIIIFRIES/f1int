@@ -11,7 +11,9 @@
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
 #include "AdBlocker.h"
 #include "Library.h"
+#include "PasswordVault.h"
 #include "TabModel.h"
+#include <QQuickWindow>
 
 // The browser's C++ side, shared by all windows. QML sees it as the "Browser" singleton.
 // Owns the shared profile, bookmarks/history, the ad blocker and the saved session.
@@ -30,6 +32,10 @@ class Browser : public QObject
     // Goes up on every setting change; QML reads it so bindings using settings refresh.
     Q_PROPERTY(int settingsRevision READ settingsRevision NOTIFY settingChanged)
     Q_PROPERTY(QString version READ version CONSTANT)
+    Q_PROPERTY(PasswordVault *passwords READ passwords CONSTANT)
+    // Messages from the password page script start with this (includes a random secret).
+    Q_PROPERTY(QString passwordMessagePrefix READ passwordMessagePrefix CONSTANT)
+    Q_PROPERTY(QString passwordScript READ passwordScript CONSTANT)
 
 public:
     explicit Browser(QObject *parent = nullptr);
@@ -44,6 +50,17 @@ public:
     QUrl uiTestScript() const;
 
     int settingsRevision() const { return m_settingsRevision; }
+    PasswordVault *passwords() const { return m_vault; }
+    QString passwordMessagePrefix() const { return QStringLiteral("f1int:") + m_nonce + QLatin1Char(':'); }
+    QString passwordScript() const;
+
+    // Windows Hello / Touch ID. `purpose` "unlock" opens the vault; "verify" re-confirms it's
+    // you (to show a password). The answer comes back through deviceAuthFinished.
+    Q_INVOKABLE void askDevice(QQuickWindow *window, const QString &purpose);
+
+    // Windows 11: frosted-glass ("acrylic") window background, light or dark.
+    // Returns false where it isn't available (the window then uses a solid colour).
+    Q_INVOKABLE bool applyBackdrop(QQuickWindow *window, bool dark);
     QString version() const { return QCoreApplication::applicationVersion(); }
 
     // Address bar text -> URL to open (a web address, or a search).
@@ -54,6 +71,7 @@ public:
     // Saved preferences. Keys look like "group/name", e.g. "tabbar/width".
     Q_INVOKABLE QVariant setting(const QString &key, const QVariant &fallback = {}) const;
     Q_INVOKABLE void setSetting(const QString &key, const QVariant &value);
+    Q_INVOKABLE void resetSetting(const QString &key);   // back to the default
 
     // ---- windows and sessions ----
     Q_INVOKABLE void newWindow(bool incognito = false);
@@ -77,6 +95,7 @@ signals:
     void settingChanged();
     void blockedChanged();
     void siteActivity(const QString &host);   // a page on `host` is sending requests
+    void deviceAuthFinished(const QString &purpose, bool ok, const QString &error);
 
 private:
     void setUpProfile(QQuickWebEngineProfile *profile);
@@ -88,6 +107,8 @@ private:
     QQuickWebEngineProfile *m_profile;
     Library *m_library;
     AdBlocker *m_adBlocker;
+    PasswordVault *m_vault;
+    QString m_nonce;
     QSettings m_settings;   // stored in the Windows registry / macOS preferences
     QString m_dataDir;
     QList<QPointer<TabModel>> m_windows;       // normal windows, in opening order

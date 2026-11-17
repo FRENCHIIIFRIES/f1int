@@ -30,7 +30,7 @@ Item {
         width: tile.width - 4
         height: tile.height - 4
         radius: 8
-        color: tile.current ? Theme.selected : hover.hovered ? Theme.hover : Theme.surface
+        color: tile.current ? Theme.selected : hover.hovered ? Theme.hover : Theme.field
         border.width: 1
         border.color: tile.current ? Theme.accent : Theme.line
         opacity: tile.asleep && !tile.current ? 0.45 : 1

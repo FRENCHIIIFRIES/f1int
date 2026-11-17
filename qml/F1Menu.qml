@@ -12,12 +12,12 @@ Menu {
         color: Theme.surface
         border.width: 1
         border.color: Theme.line
-        radius: Theme.radius
+        radius: Theme.cardRadius
     }
 
     delegate: MenuItem {
         id: item
-        implicitHeight: 32
+        implicitHeight: Theme.rowHeight
         indicator: Item {}
         arrow: Icon {
             visible: item.subMenu !== null
@@ -31,7 +31,7 @@ Menu {
             leftPadding: 8
             text: item.text
             color: item.enabled ? Theme.fg : Theme.dim
-            font.pixelSize: 13
+            font.pixelSize: Theme.px(13)
             verticalAlignment: Text.AlignVCenter
             elide: Text.ElideRight
         }
