@@ -1,0 +1,4 @@
+name,url,username,password,note
+café.test,https://café.test/login,zoë,Pässwörd-ß-€-42,
+intranet.test,https://intranet.test:8443/,zoë,"has ""quotes"" inside",
+forum.test,https://forum.test/,zoë,Edge-Pass-1,

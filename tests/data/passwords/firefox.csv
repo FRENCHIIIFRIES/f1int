@@ -1,0 +1,3 @@
+"url","username","password","httpRealm","formActionOrigin","guid","timeCreated","timeLastUsed","timePasswordChanged"
+"https://forum.test","bo","fire""fox,pass",,"https://forum.test","{0a1b2c3d-0000-4000-8000-000000000001}","1700000000000","1700000000000","1700000000000"
+"https://intranet.test","admin","Basic-Auth-9","Intranet realm",,"{0a1b2c3d-0000-4000-8000-000000000002}","1700000000000","1700000000000","1700000000000"

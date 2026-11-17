@@ -1,0 +1,4 @@
+Title,URL,Username,Password,Notes,OTPAuth
+example.test (ana),https://example.test/,ana,Safari-Pass-1,,otpauth://totp/example.test:ana?secret=JBSWY3DPEHPK3PXP&issuer=example.test
+bank.test (ana),https://bank.test/login,ana,"Safari, with comma",Card PIN is not here,
+Home Wi-Fi,,,Wifi-Pass-1,,

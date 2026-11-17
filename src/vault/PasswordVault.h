@@ -59,7 +59,10 @@ public:
     Q_INVOKABLE QVariantMap health() const;                             // { weak, reused }
 
     // ---- import / export ----
-    Q_INVOKABLE int importCsv(const QUrl &file);       // Google Password Manager / Chrome / Firefox CSV
+    // A CSV export from Chrome / Edge / Google, Firefox, Safari, Bitwarden, 1Password, LastPass ...
+    // Returns { imported, skipped (no password or website), duplicates (already saved), error ("" = fine) }.
+    Q_INVOKABLE QVariantMap importCsv(const QUrl &file);
+    Q_INVOKABLE bool deleteImportedFile();             // deletes the file just imported (plain text), nothing else
     Q_INVOKABLE bool exportCsv(const QUrl &file) const;
 
     // ---- helpers ----
@@ -88,6 +91,7 @@ private:
     QJsonObject m_header;             // salt, iterations, wrapped key, device flag, encrypted data
     QByteArray m_key;                 // vault key, only while unlocked
     QList<Entry> m_entries;           // only while unlocked
+    QString m_lastImport;             // the file importCsv() read last, for deleteImportedFile()
     qint64 m_verifiedAt = 0;
     int m_revision = 0;
     int m_autoLockMinutes = 15;

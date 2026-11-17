@@ -11,6 +11,7 @@
 #include <QJsonDocument>
 #include <QRandomGenerator>
 #include <QSaveFile>
+#include <QStringDecoder>
 #include <QUuid>
 #include <algorithm>
 
@@ -197,8 +198,8 @@ bool PasswordVault::write()
 
 QString PasswordVault::originOf(const QUrl &url)
 {
-    if (url.scheme() != QLatin1String("http") && url.scheme() != QLatin1String("https"))
-        return url.toString(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment);
+    if (url.scheme() != QLatin1String("http") && url.scheme() != QLatin1String("https"))   // "android://<key hash>@com.example.app" -> "android://com.example.app"
+        return url.toString(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment | QUrl::RemoveUserInfo);
     return url.adjusted(QUrl::RemovePath | QUrl::RemoveQuery | QUrl::RemoveFragment | QUrl::RemoveUserInfo).toString().toLower();
 }
 
@@ -336,12 +337,14 @@ QVariantMap PasswordVault::health() const
 QList<QStringList> PasswordVault::parseCsv(const QByteArray &data)
 {
     // RFC 4180: fields may be "quoted", quotes inside are doubled, and quoted fields
-    // may contain commas and line breaks.
+    // may contain commas and line breaks. A quote in the middle of an unquoted field
+    // is kept as a character (some tools write passwords like ab"c without quoting).
     QList<QStringList> rows;
     QStringList row;
     QString field;
-    bool quoted = false;
-    const QString text = QString::fromUtf8(data).remove(QChar(0xFEFF));   // drop a byte-order mark
+    bool quoted = false, fieldStart = true;
+    // UTF-8 unless a byte-order mark says otherwise (UTF-16 from Notepad); the mark itself is dropped.
+    const QString text = QStringDecoder(QStringConverter::encodingForData(data).value_or(QStringConverter::Utf8)).decode(data);
     for (int i = 0; i < text.size(); ++i) {
         const QChar c = text[i];
         if (quoted) {
@@ -349,60 +352,105 @@ QList<QStringList> PasswordVault::parseCsv(const QByteArray &data)
                 if (i + 1 < text.size() && text[i + 1] == QLatin1Char('"')) { field += c; ++i; }
                 else quoted = false;
             } else field += c;
-        } else if (c == QLatin1Char('"')) quoted = true;
-        else if (c == QLatin1Char(',')) { row << field; field.clear(); }
+        } else if (c == QLatin1Char('"') && fieldStart) { quoted = true; fieldStart = false; }
+        else if (c == QLatin1Char(',')) { row << field; field.clear(); fieldStart = true; }
         else if (c == QLatin1Char('\n') || c == QLatin1Char('\r')) {
             if (c == QLatin1Char('\r') && i + 1 < text.size() && text[i + 1] == QLatin1Char('\n')) ++i;
-            row << field; field.clear();
+            row << field; field.clear(); fieldStart = true;
             if (!(row.size() == 1 && row[0].isEmpty())) rows << row;
             row.clear();
-        } else field += c;
+        } else { field += c; fieldStart = false; }
     }
     if (!field.isEmpty() || !row.isEmpty()) { row << field; rows << row; }
     return rows;
 }
 
-int PasswordVault::importCsv(const QUrl &file)
+QVariantMap PasswordVault::importCsv(const QUrl &file)
 {
+    int imported = 0, skipped = 0, duplicates = 0;
+    const auto result = [&](const QString &error) {
+        return QVariantMap{ { "imported", imported }, { "skipped", skipped }, { "duplicates", duplicates }, { "error", error } };
+    };
+    m_lastImport.clear();
     if (m_key.isEmpty())
-        return -1;
-    QFile f(file.isLocalFile() ? file.toLocalFile() : file.toString());
+        return result(m_header.isEmpty() ? tr("Create the password vault first, then import.") : tr("Unlock your passwords first, then import."));
+    const QString path = file.isLocalFile() ? file.toLocalFile() : file.toString();
+    QFile f(path);
     if (!f.open(QIODevice::ReadOnly))
-        return -1;
-    const QList<QStringList> rows = parseCsv(f.readAll());
-    if (rows.isEmpty())
-        return 0;
-    // Find the columns by their names: Google/Chrome use url,username,password; Firefox too;
-    // some tools use login_uri / login_username / login_password.
-    const QStringList head = [&] { QStringList h; for (const QString &s : rows[0]) h << s.trimmed().toLower(); return h; }();
+        return result(tr("Couldn't open that file: %1").arg(f.errorString()));
+    if (f.size() > 64 * 1024 * 1024)
+        return result(tr("That file is far too big to be a password export."));
+    QByteArray data = f.readAll();
+    const QList<QStringList> rows = parseCsv(data);
+    Crypto::wipe(data);
+    // Find the columns by name. Chrome / Edge / Google: name,url,username,password,note. Firefox:
+    // "url","username","password",... Safari: Title,URL,Username,Password,Notes,OTPAuth. 1Password:
+    // Title,Url,Username,Password,... Bitwarden: login_uri,login_username,login_password. LastPass:
+    // url,username,password,totp,extra,...
+    const QStringList head = [&] { QStringList h; for (const QString &s : rows.value(0)) h << s.trimmed().toLower(); return h; }();
     const auto col = [&](std::initializer_list<const char *> names) {
         for (const char *n : names) { const int i = int(head.indexOf(QLatin1String(n))); if (i >= 0) return i; }
         return -1;
     };
-    const int url = col({ "url", "origin", "login_uri", "website" });
-    const int user = col({ "username", "login", "login_username", "user" });
+    const int url = col({ "url", "login_uri", "website", "origin", "uri" });
+    const int user = col({ "username", "login_username", "login", "user", "email" });
     const int pass = col({ "password", "login_password" });
+    const int note = col({ "note", "notes", "extra" });
     if (url < 0 || pass < 0)
-        return -1;
-    int added = 0;
+        return result(tr("That file doesn't look like a password export (it has no url and password columns)."));
+
+    // The logins already saved, by site and username, so even a big import stays quick.
+    const auto key = [](const QUrl &u, const QString &username) {
+        const QString host = u.host().toLower();
+        return (host.startsWith(QLatin1String("www.")) ? host.mid(4) : host) + QLatin1Char('\n') + username;
+    };
+    QHash<QString, QList<int>> known;
+    for (int i = 0; i < m_entries.size(); ++i)
+        known[key(QUrl(m_entries[i].origin), m_entries[i].username)].append(i);
+
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const auto cell = [](const QStringList &row, int i) { return i >= 0 && i < row.size() ? row[i] : QString(); };
     for (int r = 1; r < rows.size(); ++r) {
         const QStringList &row = rows[r];
-        if (row.size() <= qMax(url, pass) || row[pass].isEmpty())
+        const QString password = cell(row, pass);
+        // Bitwarden puts all of a login's addresses in one cell: the first one counts. No scheme = https.
+        QString address = cell(row, url).section(QLatin1Char(','), 0, 0).trimmed();
+        if (!address.isEmpty() && !address.contains(QLatin1String("://")))
+            address.prepend(QLatin1String("https://"));
+        const QUrl page(address);
+        if (password.isEmpty() || page.host().isEmpty()) {
+            ++skipped;   // e.g. a site you told the browser never to save, or a secure note
             continue;
-        const QUrl page(row[url]);
-        const QString username = user >= 0 && user < row.size() ? row[user] : QString();
-        if (saveKind(page, username, row[pass]) == QLatin1String("same"))
-            continue;   // already have it
-        bool updated = false;
-        for (Entry &e : m_entries)
-            if (sameSite(e.origin, page) && e.username == username) { e.password = row[pass]; e.updated = now; updated = true; }
-        if (!updated)
-            m_entries.append({ QUuid::createUuid().toString(QUuid::WithoutBraces), originOf(page), username, row[pass], {}, now, now });
-        ++added;
+        }
+        const QString username = cell(row, user);
+        QList<int> &same = known[key(page, username)];
+        const auto it = std::find_if(same.cbegin(), same.cend(), [&](int i) { return sameSite(m_entries[i].origin, page); });
+        if (it == same.cend()) {
+            same.append(int(m_entries.size()));
+            m_entries.append({ QUuid::createUuid().toString(QUuid::WithoutBraces), originOf(page), username, password,
+                               cell(row, note), now, now });
+            ++imported;
+        } else if (m_entries[*it].password == password) {
+            ++duplicates;
+        } else {   // same login, another password: the imported one is taken
+            m_entries[*it].password = password;
+            m_entries[*it].updated = now;
+            ++imported;
+        }
     }
-    write();
-    return added;
+    m_lastImport = path;
+    touch();
+    if (imported > 0)
+        write();
+    return result({});
+}
+
+bool PasswordVault::deleteImportedFile()
+{
+    // Only on request, and only the file just imported: it holds every password in plain text.
+    const bool ok = !m_lastImport.isEmpty() && QFile::remove(m_lastImport);
+    m_lastImport.clear();
+    return ok;
 }
 
 bool PasswordVault::exportCsv(const QUrl &file) const

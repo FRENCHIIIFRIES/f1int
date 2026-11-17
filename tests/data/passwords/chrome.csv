@@ -1,0 +1,8 @@
+name,url,username,password,note
+accounts.example.test,https://accounts.example.test/signin,ana@example.test,"pa,ss""word",
+shop.test,https://www.shop.test/login,ana,Tr0ub4dor&3,"Security question: first pet?
+Answer: ""Rex"", the dog"
+com.example.notes,android://3x4mpleHashAbCdEfGh_-0123456789abcdefABCDEF==@com.example.notes/,ana,App-Pass-123,
+blocked.test,https://blocked.test/,,,
+mail.test,https://mail.test/,ana@mail.test,Mail-Pass-1,
+mail.test,https://www.mail.test/,ana@mail.test,Mail-Pass-1,

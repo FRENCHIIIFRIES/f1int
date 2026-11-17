@@ -1,0 +1,4 @@
+folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp
+Work,1,login,Git,,,0,"https://git.test/login,https://git-mirror.test/",dev,Bitwarden-Pass-1,
+,,note,Secure note,"just a note, nothing to log in with",,0,,,,
+,,login,Router,,"PIN: 1234",0,router.test,admin,Router-Pass-1,
