@@ -1,13 +1,33 @@
-﻿# f1int
+﻿<img src="docs/logo.png" width="64" alt="f1int logo: a steel striker sparking on flint">
+
+# f1int
 
 A low-RAM desktop web browser built on Chromium (through Qt WebEngine), with a
-vertical tab bar and a monochrome look. Free and open source (MIT).
+vertical tab bar and a monochrome, dot-matrix look. Free and open source (MIT). No telemetry.
 
-![f1int showing Wikipedia](docs/screenshot.png)
+![f1int with grouped tabs](docs/screenshot.png)
 
-> **Early preview.** f1int has a vertical tab bar with pinned tabs and groups, and an
-> address bar that also searches. Bookmarks, history, tab sleeping, ad blocking, a
-> password manager and more are on the way.
+## What it does
+
+- **Vertical tab bar:** pinned tabs, named and coloured groups, drag to reorder,
+  tab search, collapses to icons (Ctrl+Shift+S), resizable
+- **Low RAM:** tabs you don't use fall asleep (Frozen, then fully asleep), restored tabs
+  stay asleep until clicked, blank tabs start no Chromium page at all, and a Memory
+  panel shows RAM per tab with a "sleep all" button
+- **Ad and tracker blocking** built in (EasyList and EasyPrivacy domain rules)
+- **Bookmarks** (☆ / Ctrl+D), **history**, **downloads**, address bar suggestions
+- **Reopens your tabs** after a restart or a crash
+- **Customisable:** dark / light / system theme, any accent colour (colour wheel or hex),
+  search engine, home page; a new tab page with your own picture, clock, shortcuts,
+  note, to-do list, battery/RAM and weather, each one movable and resizable
+- Incognito windows, find in page, save as PDF, zoom, full screen, developer tools,
+  Chrome's keyboard shortcuts
+
+| New tab page | Settings |
+|---|---|
+| ![New tab page](docs/newtab.png) | ![Settings](docs/settings.png) |
+
+> **Early preview.** A password manager and the emb3r offline AI sidebar are on the way.
 
 ## Install
 
@@ -65,9 +85,11 @@ attached to a new Release.
 
 ## Project layout
 
-- `src/` C++: start-up, Chromium flags, the shared browser profile, address bar logic
-- `qml/` the browser UI (tab bar, toolbar)
-- `tests/` unit tests
-- `tools/` build helpers and the RAM measurement script
+- `src/` C++: start-up and Chromium flags, profile and sessions (`Browser`), tabs
+  (`TabModel`), bookmarks/history (`Library`), ad blocking (`AdBlocker`), memory stats
+- `qml/` the browser UI: tab bar, toolbar, panels, settings, new tab page
+- `resources/` icons, logo, the Doto dot-matrix font (OFL), starter block list
+- `tests/` unit tests; `tests/ui/` scripted UI walk-throughs (`tools\ui-test.ps1`)
+- `tools/` build helpers, RAM measurement, logo generator
 - `licenses/`, `THIRD_PARTY_NOTICES.md` Qt (LGPL-3.0) and other licences
 

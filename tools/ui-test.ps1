@@ -18,6 +18,10 @@ public static class Shot {
 '@
 [void][Shot]::SetProcessDPIAware()
 
+# Start from an empty test profile each time (only the "f1int-test" folders/settings, never the real ones).
+Remove-Item "$env:APPDATA\f1int\f1int-test", "$env:LOCALAPPDATA\f1int\f1int-test" -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item 'HKCU:\Software\f1int\f1int-test' -Recurse -Force -ErrorAction SilentlyContinue
+
 $out = New-Item -ItemType Directory -Force "$PSScriptRoot\..\build\ui-shots"
 $log = Join-Path $out 'app.log'
 $env:F1INT_UI_TEST = (Resolve-Path $Script).Path

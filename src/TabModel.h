@@ -2,6 +2,7 @@
 
 #include <QAbstractListModel>
 #include <QColor>
+#include <QJsonObject>
 #include <QSortFilterProxyModel>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
@@ -13,7 +14,6 @@ class TabModel : public QAbstractListModel
 {
     Q_OBJECT
     QML_ELEMENT
-    QML_UNCREATABLE("Use Browser.tabs")
     Q_PROPERTY(int count READ count NOTIFY countChanged)
     Q_PROPERTY(int currentId READ currentId WRITE setCurrentId NOTIFY currentIdChanged)
     Q_PROPERTY(QVariantList groups READ groups NOTIFY groupsChanged)
@@ -48,6 +48,10 @@ public:
     Q_INVOKABLE int idAt(int row) const;
     Q_INVOKABLE int rowOf(int id) const;
     Q_INVOKABLE QVariantMap tab(int id) const;     // all fields of one tab, for QML
+
+    // Session restore: everything needed to bring the tabs back after a restart or crash.
+    QJsonObject toJson() const;
+    void fromJson(const QJsonObject &session);
 
     // Groups: named, coloured, collapsible.
     Q_INVOKABLE int addGroup(const QString &name, const QColor &color);

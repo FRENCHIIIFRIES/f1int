@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Qt WebEngine is Chromium. "Test" is only used by the unit tests in tests/.
-find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Svg WebEngineQuick Test)
+find_package(Qt6 6.8 REQUIRED COMPONENTS Quick QuickControls2 Svg Sql Network WebEngineQuick Test)
 qt_standard_project_setup(REQUIRES 6.8)   # turns on Qt's code generators (moc etc.)
 
 # WIN32 = no black console window on Windows. MACOSX_BUNDLE = build an .app on Mac.
@@ -16,7 +16,14 @@ qt_add_executable(f1int WIN32 MACOSX_BUNDLE
     src/Browser.h src/Browser.cpp
     src/UrlInput.h src/UrlInput.cpp
     src/TabModel.h src/TabModel.cpp
+    src/Library.h src/Library.cpp
+    src/AdBlocker.h src/AdBlocker.cpp
+    src/MemoryStats.h src/MemoryStats.cpp
 )
+target_compile_definitions(f1int PRIVATE F1INT_VERSION="${PROJECT_VERSION}")
+if(WIN32)
+    target_sources(f1int PRIVATE resources/f1int.rc)   # the .exe icon
+endif()
 
 # Qt's generated QML registration code includes our headers by bare name ("Browser.h").
 target_include_directories(f1int PRIVATE src)
@@ -41,19 +48,27 @@ qt_add_qml_module(f1int
         qml/TabRow.qml
         qml/PinnedTile.qml
         qml/GroupHeader.qml
+        qml/Ui.qml
+        qml/FindBar.qml
+        qml/LibraryPanel.qml
+        qml/SettingsPanel.qml
+        qml/MemoryPanel.qml
+        qml/ColorWheel.qml
+        qml/NewTabPage.qml
 )
 
-# Icons and the dot-matrix font, built into the program (":/icons/back.svg", ":/fonts/Doto.ttf").
+# Icons, logo, dot-matrix font and the starter ad-block list, built into the program
+# (":/icons/back.svg", ":/logo/f1int.svg", ":/fonts/Doto.ttf", ":/filters/builtin.txt").
 file(GLOB icon_files CONFIGURE_DEPENDS resources/icons/*.svg)
 qt_add_resources(f1int assets
     PREFIX /
     BASE resources
-    FILES ${icon_files} resources/fonts/Doto.ttf
+    FILES ${icon_files} resources/logo/f1int.svg resources/fonts/Doto.ttf resources/filters/builtin.txt
 )
 
 # Dynamic linking (the default) keeps us within Qt's LGPL licence.
-# Svg: draws our icons (and makes the deploy step include the SVG plugin).
-target_link_libraries(f1int PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::WebEngineQuick)
+# Svg: draws our icons. Sql: bookmarks/history. Network: filter list updates.
+target_link_libraries(f1int PRIVATE Qt6::Quick Qt6::QuickControls2 Qt6::Svg Qt6::Sql Qt6::Network Qt6::WebEngineQuick)
 
 # Mac .app details (shown in Finder / "About").
 set_target_properties(f1int PROPERTIES
@@ -122,3 +137,13 @@ qt_add_executable(tst_tabmodel tests/tst_tabmodel.cpp src/TabModel.cpp src/TabMo
 target_include_directories(tst_tabmodel PRIVATE src)
 target_link_libraries(tst_tabmodel PRIVATE Qt6::Test Qt6::Gui Qt6::Qml)   # Gui: QColor, Qml: registration macros
 add_test(NAME tabmodel COMMAND tst_tabmodel)
+
+qt_add_executable(tst_library tests/tst_library.cpp src/Library.cpp src/Library.h)
+target_include_directories(tst_library PRIVATE src)
+target_link_libraries(tst_library PRIVATE Qt6::Test Qt6::Sql Qt6::Qml)
+add_test(NAME library COMMAND tst_library)
+
+qt_add_executable(tst_adblocker tests/tst_adblocker.cpp src/AdBlocker.cpp src/AdBlocker.h)
+target_include_directories(tst_adblocker PRIVATE src)
+target_link_libraries(tst_adblocker PRIVATE Qt6::Test Qt6::WebEngineCore)
+add_test(NAME adblocker COMMAND tst_adblocker)

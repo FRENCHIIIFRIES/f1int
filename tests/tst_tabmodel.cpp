@@ -86,6 +86,29 @@ private slots:
         Q_UNUSED(c);
     }
 
+    void sessionRoundTrip()
+    {
+        TabModel m;
+        const int a = m.add(QUrl("https://a.test")), b = m.add(QUrl("https://b.test")), c = m.add(QUrl("https://c.test"));
+        m.update(b, { { "title", "Bee" } });
+        m.setPinned(c, true);
+        m.setGroup(b, m.addGroup("Work", Qt::red));
+        m.setCurrentId(b);
+        Q_UNUSED(a);
+
+        TabModel restored;
+        restored.fromJson(m.toJson());
+        QCOMPARE(restored.count(), 3);
+        const QVariantMap first = restored.tab(restored.idAt(0));
+        QCOMPARE(first["url"].toUrl(), QUrl("https://c.test"));      // pinned stays first
+        QVERIFY(first["pinned"].toBool());
+        const QVariantMap cur = restored.tab(restored.currentId());
+        QCOMPARE(cur["title"].toString(), QString("Bee"));           // the open tab is remembered
+        QCOMPARE(restored.groups().size(), 1);
+        QCOMPARE(cur["groupId"].toInt(), restored.groups()[0].toMap()["id"].toInt());
+        QVERIFY(cur["asleep"].toBool());                              // restored tabs start asleep
+    }
+
     void searchFilter()
     {
         TabModel m;

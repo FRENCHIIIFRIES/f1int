@@ -6,6 +6,7 @@ import f1int
 Item {
     id: header
     required property string section   // the group id as text; "" = tabs without a group
+    property TabModel tabs
     property var group: null
     property bool narrow: false
     signal menuRequested()
@@ -68,7 +69,7 @@ Item {
             acceptedButtons: Qt.LeftButton | Qt.RightButton
             onClicked: (m) => {
                 if (m.button === Qt.RightButton) header.menuRequested()
-                else Browser.tabs.editGroup(header.group.id, { collapsed: !header.group.collapsed })
+                else header.tabs.editGroup(header.group.id, { collapsed: !header.group.collapsed })
             }
         }
     }

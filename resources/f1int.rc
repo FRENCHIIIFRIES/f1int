@@ -1,0 +1,2 @@
+// Windows resource file: gives f1int.exe its icon in Explorer, the taskbar and shortcuts.
+IDI_ICON1 ICON "logo/f1int.ico"

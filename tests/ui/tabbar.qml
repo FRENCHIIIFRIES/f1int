@@ -11,9 +11,9 @@ Item {
 
     function say(text) { console.warn("SHOT " + text) }
     Connections {   // log every tab switch, to catch unexpected ones
-        target: Browser.tabs
+        target: test.win.tabs
         function onCurrentIdChanged() {
-            console.warn("step " + test.step + ": current tab -> " + Browser.tabs.currentId + " " + Browser.tabs.tab(Browser.tabs.currentId).title)
+            console.warn("step " + test.step + ": current tab -> " + test.win.tabs.currentId + " " + test.win.tabs.tab(test.win.tabs.currentId).title)
         }
     }
 
@@ -23,7 +23,7 @@ Item {
     running: true
     onTriggered: {
         const win = test.win
-        const tabs = Browser.tabs
+        const tabs = test.win.tabs
         switch (test.step++) {
         case 0: {   // pin the last tab, put tabs 2 and 3 in a group
             tabs.setPinned(tabs.idAt(3), true)

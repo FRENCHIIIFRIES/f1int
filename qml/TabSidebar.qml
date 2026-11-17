@@ -7,6 +7,7 @@ import f1int
 // then the other tabs with their groups. Collapses to icons; hovering opens it again.
 Rectangle {
     id: sidebar
+    property TabModel tabs
 
     property bool collapsed: String(Browser.setting("tabbar/collapsed", false)) === "true"
     property real expandedWidth: Number(Browser.setting("tabbar/width", 248))
@@ -30,7 +31,7 @@ Rectangle {
     }
     // Group details for a group id, or null. Re-runs whenever the groups change.
     function groupInfo(id) {
-        const groups = Browser.tabs.groups
+        const groups = sidebar.tabs.groups
         for (let i = 0; i < groups.length; ++i)
             if (groups[i].id === id)
                 return groups[i]
@@ -66,7 +67,7 @@ Rectangle {
             spacing: 6
             Text {
                 Layout.leftMargin: 6
-                text: (Browser.tabs.count < 10 ? "0" : "") + Browser.tabs.count
+                text: (sidebar.tabs.count < 10 ? "0" : "") + sidebar.tabs.count
                 color: Theme.fg
                 font.family: Theme.dotFont
                 font.pixelSize: 26
@@ -160,8 +161,8 @@ Rectangle {
             interactive: false
             cellWidth: sidebar.narrow ? width : Math.floor(width / 4)
             cellHeight: 40
-            model: TabFilter { sourceModel: Browser.tabs; pinned: true; text: search.text }
-            delegate: PinnedTile { onMenuRequested: sidebar.tabMenuRequested(tabId) }
+            model: TabFilter { sourceModel: sidebar.tabs; pinned: true; text: search.text }
+            delegate: PinnedTile { tabs: sidebar.tabs; onMenuRequested: sidebar.tabMenuRequested(tabId) }
             moveDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: Theme.anim } }
         }
         Rectangle {
@@ -179,14 +180,16 @@ Rectangle {
             clip: true
             spacing: 2
             boundsBehavior: Flickable.StopAtBounds
-            model: TabFilter { sourceModel: Browser.tabs; pinned: false; text: search.text }
+            model: TabFilter { sourceModel: sidebar.tabs; pinned: false; text: search.text }
             section.property: "groupKey"
             section.delegate: GroupHeader {
+                tabs: sidebar.tabs
                 group: sidebar.groupInfo(Number(section))
                 narrow: sidebar.narrow
                 onMenuRequested: sidebar.groupMenuRequested(group.id)
             }
             delegate: TabRow {
+                tabs: sidebar.tabs
                 group: sidebar.groupInfo(groupId)
                 narrow: sidebar.narrow
                 onMenuRequested: sidebar.tabMenuRequested(tabId)

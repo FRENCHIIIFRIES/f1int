@@ -1,5 +1,8 @@
 #include "TabModel.h"
 
+#include <QJsonArray>
+#include <algorithm>
+
 TabModel::TabModel(QObject *parent) : QAbstractListModel(parent) {}
 
 int TabModel::rowCount(const QModelIndex &parent) const
@@ -219,6 +222,54 @@ QVariantMap TabModel::tab(int id) const
     for (auto it = names.begin(); it != names.end(); ++it)
         m.insert(QString::fromLatin1(it.value()), data(index(row), it.key()));
     return m;
+}
+
+QJsonObject TabModel::toJson() const
+{
+    QJsonArray tabs, groups;
+    for (const Tab &t : m_tabs)
+        tabs.append(QJsonObject{ { "url", t.url.toString() }, { "title", t.title }, { "icon", t.icon.toString() },
+                                 { "pinned", t.pinned }, { "group", t.group }, { "muted", t.muted },
+                                 { "current", t.id == m_current } });
+    for (const Group &g : m_groups)
+        groups.append(QJsonObject{ { "id", g.id }, { "name", g.name }, { "color", g.color.name() },
+                                   { "collapsed", g.collapsed } });
+    return { { "tabs", tabs }, { "groups", groups } };
+}
+
+void TabModel::fromJson(const QJsonObject &session)
+{
+    beginResetModel();
+    m_tabs.clear();
+    m_groups.clear();
+    for (const QJsonValue &v : session["groups"].toArray()) {
+        const QJsonObject g = v.toObject();
+        m_groups.append({ g["id"].toInt(), g["name"].toString(), QColor(g["color"].toString()), g["collapsed"].toBool() });
+    }
+    int current = -1;
+    for (const QJsonValue &v : session["tabs"].toArray()) {
+        const QJsonObject o = v.toObject();
+        Tab t;
+        t.id = m_nextId++;
+        t.url = QUrl(o["url"].toString());
+        t.title = o["title"].toString();
+        t.icon = QUrl(o["icon"].toString());
+        t.pinned = o["pinned"].toBool();
+        t.group = t.pinned || groupIndex(o["group"].toInt(-1)) < 0 ? -1 : o["group"].toInt();
+        t.muted = o["muted"].toBool();
+        t.asleep = true;   // restored tabs stay asleep (no page, almost no RAM) until clicked
+        if (o["current"].toBool())
+            current = t.id;
+        m_tabs.append(t);
+    }
+    // Saved files could be edited by hand: re-apply the "pinned first" rule.
+    std::stable_sort(m_tabs.begin(), m_tabs.end(), [](const Tab &a, const Tab &b) { return a.pinned > b.pinned; });
+    dropEmptyGroups();
+    endResetModel();
+    emit countChanged();
+    emit groupsChanged();
+    m_current = -1;
+    setCurrentId(current >= 0 ? current : idAt(0));
 }
 
 int TabModel::addGroup(const QString &name, const QColor &color)

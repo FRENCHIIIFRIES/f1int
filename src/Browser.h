@@ -1,46 +1,98 @@
 #pragma once
 
+#include <QCoreApplication>
+#include <QList>
 #include <QObject>
+#include <QPointer>
 #include <QSettings>
+#include <QTimer>
 #include <QUrl>
 #include <QtQml/qqmlregistration.h>
 #include <QtWebEngineQuick/QQuickWebEngineProfile>
+#include "AdBlocker.h"
+#include "Library.h"
 #include "TabModel.h"
 
 // The browser's C++ side, shared by all windows. QML sees it as the "Browser" singleton.
-// Later stages add tabs, history, bookmarks, ad blocking etc. here.
+// Owns the shared profile, bookmarks/history, the ad blocker and the saved session.
 class Browser : public QObject
 {
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
     Q_PROPERTY(QQuickWebEngineProfile *profile READ profile CONSTANT)
-    Q_PROPERTY(QUrl homeUrl READ homeUrl CONSTANT)
-    Q_PROPERTY(QList<QUrl> startUrls READ startUrls CONSTANT)
-    Q_PROPERTY(TabModel *tabs READ tabs CONSTANT)
+    Q_PROPERTY(Library *library READ library CONSTANT)
+    Q_PROPERTY(QUrl homeUrl READ homeUrl NOTIFY settingChanged)
     Q_PROPERTY(bool reduceMotion READ reduceMotion CONSTANT)
     Q_PROPERTY(QUrl uiTestScript READ uiTestScript CONSTANT)
+    Q_PROPERTY(int blockedTotal READ blockedTotal NOTIFY blockedChanged)
+    Q_PROPERTY(QVariantList searchEngines READ searchEngines CONSTANT)
+    // Goes up on every setting change; QML reads it so bindings using settings refresh.
+    Q_PROPERTY(int settingsRevision READ settingsRevision NOTIFY settingChanged)
+    Q_PROPERTY(QString version READ version CONSTANT)
 
 public:
     explicit Browser(QObject *parent = nullptr);
 
     QQuickWebEngineProfile *profile() const { return m_profile; }
-    TabModel *tabs() const { return m_tabs; }
+    Library *library() const { return m_library; }
     QUrl homeUrl() const;
-    QList<QUrl> startUrls() const;   // URLs given on the command line (one tab each), or the home page
     bool reduceMotion() const;   // the system's "show animations" setting is off
+    int blockedTotal() const { return m_adBlocker->blockedTotal(); }
+    QVariantList searchEngines() const;
     // A QML test script to run inside the app (developers only; set F1INT_UI_TEST=<file>).
-    QUrl uiTestScript() const { return QUrl::fromLocalFile(qEnvironmentVariable("F1INT_UI_TEST")); }
+    QUrl uiTestScript() const;
+
+    int settingsRevision() const { return m_settingsRevision; }
+    QString version() const { return QCoreApplication::applicationVersion(); }
 
     // Address bar text -> URL to open (a web address, or a search).
     Q_INVOKABLE QUrl urlFromInput(const QString &text) const;
+    Q_INVOKABLE QString localPath(const QUrl &fileUrl) const { return fileUrl.toLocalFile(); }
+    Q_INVOKABLE QUrl fileUrl(const QString &path) const { return QUrl::fromLocalFile(path); }
 
-    // Small saved preferences (tab bar width, collapsed, ...).
+    // Saved preferences. Keys look like "group/name", e.g. "tabbar/width".
     Q_INVOKABLE QVariant setting(const QString &key, const QVariant &fallback = {}) const;
     Q_INVOKABLE void setSetting(const QString &key, const QVariant &value);
 
+    // ---- windows and sessions ----
+    Q_INVOKABLE void newWindow(bool incognito = false);
+    // A window announces its tab list. Normal windows are saved for session restore;
+    // returns true if saved tabs were put into `tabs` (the window then opens nothing else).
+    Q_INVOKABLE bool registerWindow(TabModel *tabs, bool incognito);
+    Q_INVOKABLE void unregisterWindow(TabModel *tabs);
+    // { first: is this the first window?, urls: URLs given on the command line (first window only) }
+    Q_INVOKABLE QVariantMap takeStartUrls();
+    // A throwaway profile for an incognito window: nothing is written to disk.
+    Q_INVOKABLE QQuickWebEngineProfile *createIncognitoProfile(QObject *window);
+
+    // ---- privacy and memory ----
+    Q_INVOKABLE void clearBrowsingData();   // history, cookies, cache
+    // { total, browser, processes: { "<pid>": bytes } } for internal memory stats.
+    Q_INVOKABLE QVariantMap memoryInfo() const;
+    // { percent (-1 = no battery / unknown), charging } for the new tab page.
+    Q_INVOKABLE QVariantMap battery() const;
+
+signals:
+    void settingChanged();
+    void blockedChanged();
+    void siteActivity(const QString &host);   // a page on `host` is sending requests
+
 private:
+    void setUpProfile(QQuickWebEngineProfile *profile);
+    void applyColorScheme();   // light/dark window frame to match the theme setting
+    void scheduleSave();
+    void writeSession();
+    void loadFilterLists();
+
     QQuickWebEngineProfile *m_profile;
-    TabModel *m_tabs;
+    Library *m_library;
+    AdBlocker *m_adBlocker;
     QSettings m_settings;   // stored in the Windows registry / macOS preferences
+    QString m_dataDir;
+    QList<QPointer<TabModel>> m_windows;       // normal windows, in opening order
+    QList<QJsonObject> m_pendingRestore;       // saved windows not yet reopened
+    bool m_startUrlsTaken = false;
+    int m_settingsRevision = 0;
+    QTimer m_saveTimer;
 };

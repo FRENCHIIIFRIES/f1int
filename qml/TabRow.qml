@@ -14,12 +14,13 @@ Item {
     required property bool audible
     required property bool muted
     required property int groupId
+    property TabModel tabs
     property var group: null        // { name, color, collapsed } when the tab is in a group
     property bool narrow: false     // tab bar collapsed to icons only
     signal menuRequested()
     signal muteToggled()
 
-    readonly property bool current: tabId === Browser.tabs.currentId
+    readonly property bool current: tabId === row.tabs.currentId
     width: ListView.view ? ListView.view.width : 0
     height: group && group.collapsed ? 0 : 34
     visible: height > 0
@@ -28,7 +29,7 @@ Item {
     // Another tab dragged over this one takes its place.
     DropArea {
         anchors.fill: parent
-        onEntered: (drag) => Browser.tabs.move(drag.source.tabId, row.tabId)
+        onEntered: (drag) => row.tabs.move(drag.source.tabId, row.tabId)
     }
 
     Rectangle {
@@ -53,9 +54,9 @@ Item {
             drag.target: body
             drag.axis: Drag.YAxis
             drag.threshold: 6
-            onPressed: (m) => { if (m.button === Qt.LeftButton) Browser.tabs.currentId = row.tabId }
+            onPressed: (m) => { if (m.button === Qt.LeftButton) row.tabs.currentId = row.tabId }
             onClicked: (m) => {
-                if (m.button === Qt.MiddleButton) Browser.tabs.close(row.tabId)
+                if (m.button === Qt.MiddleButton) row.tabs.close(row.tabId)
                 else if (m.button === Qt.RightButton) row.menuRequested()
             }
         }
@@ -142,7 +143,7 @@ Item {
                 iconSize: 14
                 iconName: "close"
                 tip: qsTr("Close tab (Ctrl+W)")
-                onClicked: Browser.tabs.close(row.tabId)
+                onClicked: row.tabs.close(row.tabId)
             }
         }
     }

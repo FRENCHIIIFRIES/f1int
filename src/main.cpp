@@ -1,7 +1,7 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
+#include <QIcon>
 #include <QQmlApplicationEngine>
-#include <QStyleHints>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 
 // Chromium command-line switches. Qt WebEngine reads them once, when it starts,
@@ -30,13 +30,15 @@ int main(int argc, char *argv[])
 {
     // These names decide where settings and the browser profile are stored on disk.
     QCoreApplication::setOrganizationName(QStringLiteral("f1int"));
-    QCoreApplication::setApplicationName(QStringLiteral("f1int"));
+    // UI test runs get their own data folder and settings, so they never touch the user's.
+    QCoreApplication::setApplicationName(qEnvironmentVariableIsSet("F1INT_UI_TEST") ? QStringLiteral("f1int-test")
+                                                                                    : QStringLiteral("f1int"));
 
     applyChromiumFlags();
     QtWebEngineQuick::initialize();   // must come before the app object is created
     QGuiApplication app(argc, argv);
-    // Dark window frame/title bar to match the dark theme (light mode arrives with Settings).
-    app.styleHints()->setColorScheme(Qt::ColorScheme::Dark);
+    QCoreApplication::setApplicationVersion(QStringLiteral(F1INT_VERSION));
+    app.setWindowIcon(QIcon(QStringLiteral(":/logo/f1int.svg")));
     QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/Doto.ttf"));   // dot-matrix font
 
     QQmlApplicationEngine engine;

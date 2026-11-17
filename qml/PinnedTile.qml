@@ -10,15 +10,16 @@ Item {
     required property url icon
     required property bool loading
     required property bool asleep
+    property TabModel tabs
     signal menuRequested()
 
-    readonly property bool current: tabId === Browser.tabs.currentId
+    readonly property bool current: tabId === tile.tabs.currentId
     width: GridView.view.cellWidth
     height: GridView.view.cellHeight
 
     DropArea {
         anchors.fill: parent
-        onEntered: (drag) => Browser.tabs.move(drag.source.tabId, tile.tabId)
+        onEntered: (drag) => tile.tabs.move(drag.source.tabId, tile.tabId)
     }
 
     Rectangle {
@@ -65,9 +66,9 @@ Item {
             acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
             drag.target: body
             drag.threshold: 6
-            onPressed: (m) => { if (m.button === Qt.LeftButton) Browser.tabs.currentId = tile.tabId }
+            onPressed: (m) => { if (m.button === Qt.LeftButton) tile.tabs.currentId = tile.tabId }
             onClicked: (m) => {
-                if (m.button === Qt.MiddleButton) Browser.tabs.close(tile.tabId)
+                if (m.button === Qt.MiddleButton) tile.tabs.close(tile.tabId)
                 else if (m.button === Qt.RightButton) tile.menuRequested()
             }
         }
