@@ -76,10 +76,14 @@ Browser::Browser(QObject *parent)
 void Browser::setUpProfile(QQuickWebEngineProfile *profile)
 {
     profile->setUrlRequestInterceptor(m_adBlocker);
-    // The default user agent ends in "QtWebEngine/6.x Chrome/..."; some sites (notably
-    // Google sign-in) refuse "embedded" browsers that announce QtWebEngine. Drop that word.
+    // The default user agent reads "... QtWebEngine/6.x Chrome/..."; some sites treat the
+    // unknown word as an old or odd browser, so f1int drops it. Google's sign-in is the
+    // exception: it refuses a user agent that doesn't match the engine (see AdBlocker).
     static const QRegularExpression qtToken(QStringLiteral(" QtWebEngine/\\S+"));
-    profile->setHttpUserAgent(profile->httpUserAgent().remove(qtToken));
+    const QString engine = profile->httpUserAgent();
+    if (m_adBlocker->engineUserAgent.isEmpty() && engine.contains(qtToken))
+        m_adBlocker->engineUserAgent = engine.toLatin1();
+    profile->setHttpUserAgent(QString(engine).remove(qtToken));
 }
 
 QUrl Browser::homeUrl() const

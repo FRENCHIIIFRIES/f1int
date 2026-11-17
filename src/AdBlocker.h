@@ -24,6 +24,14 @@ public:
     // Would a request to `host`, made by a page on `pageHost`, be blocked?
     bool blocks(const QString &host, const QString &pageHost) const;
 
+    // The engine's own user agent ("... QtWebEngine/6.x Chrome/..."). f1int hides that word
+    // elsewhere, but Google's sign-in refuses a browser whose user agent and client hints
+    // ("Chromium", never "Google Chrome") disagree, so there it is told the plain truth.
+    QByteArray engineUserAgent;
+    // The user agent to send for a request to `request` made by a page at `page`; empty = the usual one.
+    QByteArray userAgentFor(const QUrl &request, const QUrl &page) const;
+    static bool isGoogleSignIn(const QUrl &url);
+
     bool enabled = true;
     int blockedTotal() const { return m_blockedTotal; }
 

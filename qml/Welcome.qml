@@ -1,6 +1,5 @@
 import QtQuick
 import QtQuick.Controls.Basic
-import QtQuick.Dialogs
 import QtQuick.Effects
 import QtQuick.Layouts
 import QtQuick.Particles
@@ -381,8 +380,6 @@ Rectangle {
                         id: pw
                         anchors { fill: parent; margins: 16 }
                         spacing: 10
-                        readonly property string vaultState: Browser.passwords.state
-                        property string result: ""
                         RowLayout {
                             spacing: 8
                             Icon { glyph: "key"; color: Theme.accent }
@@ -393,45 +390,9 @@ Rectangle {
                             wrapMode: Text.WordWrap
                             color: Theme.dim
                             font.pixelSize: Theme.px(13)
-                            text: qsTr("Browsers keep saved passwords locked, so export them first. In Chrome: Settings › Autofill and passwords › Google Password Manager › Settings › Export passwords. Then choose that file here.")
+                            text: qsTr("Browsers keep saved passwords locked, so you export them to a file first.")
                         }
-                        RowLayout {
-                            spacing: 10
-                            Ui.Field {
-                                id: master
-                                visible: pw.vaultState !== "unlocked"
-                                Layout.preferredWidth: 260
-                                echoMode: TextInput.Password
-                                placeholderText: pw.vaultState === "none" ? qsTr("New master password (8+ characters)") : qsTr("Your f1int master password")
-                            }
-                            Ui.Pill {
-                                text: qsTr("Choose file…")
-                                enabled: pw.vaultState === "unlocked" || master.text.length >= 8
-                                onClicked: csvDialog.open()
-                            }
-                        }
-                        Text {
-                            visible: pw.result !== ""
-                            Layout.fillWidth: true
-                            wrapMode: Text.WordWrap
-                            text: pw.result
-                            color: Theme.fg
-                            font.pixelSize: Theme.px(13)
-                        }
-                        FileDialog {
-                            id: csvDialog
-                            title: qsTr("Choose the exported passwords file")
-                            nameFilters: [qsTr("Password files (*.csv)")]
-                            onAccepted: {
-                                const v = Browser.passwords
-                                if (v.state === "none" && !v.setUp(master.text, true)) { pw.result = qsTr("Couldn't create the password vault."); return }
-                                if (v.state === "locked" && !v.unlock(master.text)) { pw.result = qsTr("That master password isn't right."); return }
-                                master.text = ""
-                                const n = v.importCsv(selectedFile)
-                                pw.result = n < 0 ? qsTr("That file couldn't be read. Is it the exported CSV?")
-                                                  : qsTr("Imported %1 passwords. Now delete the exported file: it isn't encrypted.").arg(n)
-                            }
-                        }
+                        PasswordsPanel.Importer { Layout.fillWidth: true }
                     }
                 }
                 Item { Layout.fillHeight: true }

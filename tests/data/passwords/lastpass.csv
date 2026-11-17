@@ -1,0 +1,5 @@
+url,username,password,totp,extra,name,grouping,fav
+https://news.test/login,ana,LastPass-Pass-1,,,news.test,Social,0
+http://sn,,,,"NoteType:Server
+Hostname:db.test",DB server,Notes,0
+https://mail.test/,ana@mail.test,LastPass-Pass-2,,,mail.test,Email,0
