@@ -13,6 +13,31 @@ QtObject {
         font.weight: Font.DemiBold
     }
 
+    // A profile's picture, or its first letter on the accent colour.
+    component Avatar: Rectangle {
+        property string name
+        property url picture
+        implicitWidth: 28
+        implicitHeight: 28
+        radius: width / 2
+        color: picture.toString() !== "" ? "transparent" : Theme.accent
+        Text {
+            anchors.centerIn: parent
+            visible: parent.picture.toString() === ""
+            text: (parent.name || "?").charAt(0).toUpperCase()
+            color: Theme.textOnAccent
+            font.pixelSize: Math.round(parent.width * 0.45)
+            font.weight: Font.DemiBold
+        }
+        Image {
+            anchors.fill: parent
+            visible: parent.picture.toString() !== ""
+            source: parent.picture
+            sourceSize: Qt.size(128, 128)
+            cache: false
+        }
+    }
+
     // A small outlined tag, e.g. "weak" next to a password.
     component Badge: Rectangle {
         property alias text: badgeText.text

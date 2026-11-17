@@ -16,6 +16,7 @@ Rectangle {
     signal menuRequested(Item button)
     signal panelRequested(string name)
     signal keyRequested(Item button)
+    signal profileRequested(Item button)
 
     function focusAddress() { address.forceActiveFocus(); address.selectAll() }
     function toggleBookmark() {
@@ -92,7 +93,7 @@ Rectangle {
             id: address
             Layout.row: bar.stacked ? 1 : 0
             Layout.column: bar.stacked ? 0 : 5
-            Layout.columnSpan: bar.stacked ? 8 : 1
+            Layout.columnSpan: bar.stacked ? 9 : 1
             Layout.fillWidth: true
             Layout.leftMargin: bar.stacked ? 0 : 6
             Layout.rightMargin: bar.stacked ? 0 : 6
@@ -271,10 +272,30 @@ Rectangle {
                 color: Theme.accent2
             }
         }
+        // Your profile: its picture, opens the profile menu.
+        Button {
+            id: profileButton
+            Layout.row: 0
+            Layout.column: 7
+            visible: !bar.incognito
+            implicitWidth: 30
+            implicitHeight: 30
+            focusPolicy: Qt.NoFocus
+            Accessible.name: qsTr("Profile: %1").arg(Browser.profiles.currentName)
+            ToolTip.text: Browser.profiles.currentName
+            ToolTip.visible: hovered
+            ToolTip.delay: 600
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            background: Rectangle { radius: 15; color: profileButton.hovered ? Theme.hover : "transparent" }
+            contentItem: Item {
+                Ui.Avatar { anchors.centerIn: parent; width: 22; height: 22; name: Browser.profiles.currentName; picture: Browser.profiles.currentPicture }
+            }
+            onClicked: bar.profileRequested(profileButton)
+        }
         IconButton {
             id: more
             Layout.row: 0
-            Layout.column: 7
+            Layout.column: 8
             iconName: "more"
             tip: qsTr("Menu")
             onClicked: bar.menuRequested(more)

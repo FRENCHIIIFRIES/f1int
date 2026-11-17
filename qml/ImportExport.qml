@@ -8,7 +8,7 @@ import f1int
 // pick a profile → pick what to bring → see what would be added → import → summary.
 // Then exporting bookmarks and history, and backing up / restoring your whole setup.
 ColumnLayout {
-    id: data
+    id: io
     signal openPasswords()
     spacing: 22
 
@@ -41,7 +41,7 @@ ColumnLayout {
                             id: stepItem
                             required property string modelData
                             required property int index
-                            readonly property bool reached: data.step >= index + 1
+                            readonly property bool reached: io.step >= index + 1
                             spacing: 6
                             Rectangle {
                                 width: 20; height: 20; radius: 10
@@ -57,7 +57,7 @@ ColumnLayout {
 
                 // 0: start
                 ColumnLayout {
-                    visible: data.step === 0
+                    visible: io.step === 0
                     spacing: 10
                     Text {
                         Layout.fillWidth: true
@@ -68,23 +68,23 @@ ColumnLayout {
                     }
                     Row {
                         spacing: 8
-                        Ui.Pill { primary: true; text: qsTr("Find browsers on this computer"); onClicked: { data.profiles = Browser.library.otherBrowserProfiles(); data.step = 1 } }
+                        Ui.Pill { primary: true; text: qsTr("Find browsers on this computer"); onClicked: { io.profiles = Browser.library.otherBrowserProfiles(); io.step = 1 } }
                         Ui.Pill { text: qsTr("Bookmarks from an HTML file…"); onClicked: htmlDialog.open() }
                     }
                 }
 
                 // 1: pick a profile
                 ColumnLayout {
-                    visible: data.step === 1
+                    visible: io.step === 1
                     spacing: 8
                     Text {
-                        visible: data.profiles.length === 0
+                        visible: io.profiles.length === 0
                         text: qsTr("No other browsers found. You can still import an HTML bookmarks file.")
                         color: Theme.dim
                         font.pixelSize: Theme.px(13)
                     }
                     Repeater {
-                        model: data.profiles
+                        model: io.profiles
                         Rectangle {
                             id: profileCard
                             required property var modelData
@@ -108,28 +108,28 @@ ColumnLayout {
                                 Text { text: profileCard.modelData.name; color: Theme.dim; font.pixelSize: Theme.px(11) }
                             }
                             Icon { anchors.right: parent.right; anchors.rightMargin: 14; anchors.verticalCenter: parent.verticalCenter; glyph: "forward"; color: Theme.dim; sourceSize: Qt.size(14, 14) }
-                            MouseArea { anchors.fill: parent; onClicked: { data.picked = profileCard.modelData; data.step = 2 } }
+                            MouseArea { anchors.fill: parent; onClicked: { io.picked = profileCard.modelData; io.step = 2 } }
                         }
                     }
-                    Ui.Pill { text: qsTr("Back"); onClicked: data.step = 0 }
+                    Ui.Pill { text: qsTr("Back"); onClicked: io.step = 0 }
                 }
 
                 // 2: what to bring
                 ColumnLayout {
-                    visible: data.step === 2
+                    visible: io.step === 2
                     spacing: 10
-                    Text { text: data.picked ? qsTr("From %1 (%2)").arg(data.picked.browser).arg(data.picked.name) : ""; color: Theme.fg; font.pixelSize: Theme.px(14); font.weight: Font.Medium }
+                    Text { text: io.picked ? qsTr("From %1 (%2)").arg(io.picked.browser).arg(io.picked.name) : ""; color: Theme.fg; font.pixelSize: Theme.px(14); font.weight: Font.Medium }
                     Repeater {
                         model: [{ key: "bookmarks", label: qsTr("Bookmarks") }, { key: "history", label: qsTr("History") },
                                 { key: "search", label: qsTr("Default search engine"), chromiumOnly: true }]
                         RowLayout {
                             id: whatRow
                             required property var modelData
-                            visible: !modelData.chromiumOnly || (data.picked && data.picked.kind === "chromium")
+                            visible: !modelData.chromiumOnly || (io.picked && io.picked.kind === "chromium")
                             spacing: 12
                             Ui.Toggle {
-                                checked: data.what[whatRow.modelData.key] === true
-                                onToggled: { const w = Object.assign({}, data.what); w[whatRow.modelData.key] = checked; data.what = w }
+                                checked: io.what[whatRow.modelData.key] === true
+                                onToggled: { const w = Object.assign({}, io.what); w[whatRow.modelData.key] = checked; io.what = w }
                                 Accessible.name: whatRow.modelData.label
                             }
                             Text { text: whatRow.modelData.label; color: Theme.fg; font.pixelSize: Theme.px(13) }
@@ -144,58 +144,58 @@ ColumnLayout {
                     }
                     Row {
                         spacing: 8
-                        Ui.Pill { text: qsTr("Back"); onClicked: data.step = 1 }
+                        Ui.Pill { text: qsTr("Back"); onClicked: io.step = 1 }
                         Ui.Pill {
                             primary: true
                             text: qsTr("Check what's there")
-                            enabled: data.what.bookmarks || data.what.history || data.what.search
-                            onClicked: { data.preview = Browser.library.importProfile(data.picked.path, Object.assign({ dryRun: true }, data.what)); data.step = 3 }
+                            enabled: io.what.bookmarks || io.what.history || io.what.search
+                            onClicked: { io.preview = Browser.library.importProfile(io.picked.path, Object.assign({ dryRun: true }, io.what)); io.step = 3 }
                         }
-                        Ui.Pill { text: qsTr("Import passwords…"); onClicked: data.openPasswords() }
+                        Ui.Pill { text: qsTr("Import passwords…"); onClicked: io.openPasswords() }
                     }
                 }
 
                 // 3: preview, then confirm
                 ColumnLayout {
-                    visible: data.step === 3
+                    visible: io.step === 3
                     spacing: 10
                     Text { text: qsTr("This will add:"); color: Theme.fg; font.pixelSize: Theme.px(14); font.weight: Font.Medium }
                     Grid {
                         columns: 2
                         columnSpacing: 18
                         rowSpacing: 6
-                        Text { visible: data.what.bookmarks; text: data.preview ? data.number(data.preview.bookmarks) : ""; color: Theme.fg; font.family: Theme.numberFont; font.pixelSize: Theme.px(20); font.weight: Font.Bold }
-                        Text { visible: data.what.bookmarks; text: qsTr("new bookmarks"); color: Theme.dim; font.pixelSize: Theme.px(13) }
-                        Text { visible: data.what.history; text: data.preview ? data.number(data.preview.history) : ""; color: Theme.fg; font.family: Theme.numberFont; font.pixelSize: Theme.px(20); font.weight: Font.Bold }
-                        Text { visible: data.what.history; text: qsTr("pages of history"); color: Theme.dim; font.pixelSize: Theme.px(13) }
+                        Text { visible: io.what.bookmarks; text: io.preview ? io.number(io.preview.bookmarks) : ""; color: Theme.fg; font.family: Theme.numberFont; font.pixelSize: Theme.px(20); font.weight: Font.Bold }
+                        Text { visible: io.what.bookmarks; text: qsTr("new bookmarks"); color: Theme.dim; font.pixelSize: Theme.px(13) }
+                        Text { visible: io.what.history; text: io.preview ? io.number(io.preview.history) : ""; color: Theme.fg; font.family: Theme.numberFont; font.pixelSize: Theme.px(20); font.weight: Font.Bold }
+                        Text { visible: io.what.history; text: qsTr("pages of history"); color: Theme.dim; font.pixelSize: Theme.px(13) }
                     }
                     Text {
-                        visible: data.what.search && data.preview && data.preview.search !== ""
-                        text: data.preview ? qsTr("Search engine: %1").arg(String(data.preview.search).replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) : ""
+                        visible: io.what.search && io.preview && io.preview.search !== ""
+                        text: io.preview ? qsTr("Search engine: %1").arg(String(io.preview.search).replace(/^https?:\/\/(www\.)?/, "").split("/")[0]) : ""
                         color: Theme.fg
                         font.pixelSize: Theme.px(13)
                     }
-                    Text { visible: data.preview && data.preview.error !== undefined; text: data.preview && data.preview.error ? data.preview.error : ""; color: Theme.accent2; font.pixelSize: Theme.px(12) }
+                    Text { visible: io.preview && io.preview.error !== undefined; text: io.preview && io.preview.error ? io.preview.error : ""; color: Theme.accent2; font.pixelSize: Theme.px(12) }
                     Text { text: qsTr("Things you already have are skipped."); color: Theme.dim; font.pixelSize: Theme.px(12) }
                     Row {
                         spacing: 8
-                        Ui.Pill { text: qsTr("Back"); onClicked: data.step = 2 }
-                        Ui.Pill { primary: true; text: qsTr("Import"); onClicked: { data.step = 4; importTimer.start() } }
+                        Ui.Pill { text: qsTr("Back"); onClicked: io.step = 2 }
+                        Ui.Pill { primary: true; text: qsTr("Import"); onClicked: { io.step = 4; importTimer.start() } }
                     }
                 }
                 Timer {   // a moment for the "importing" state to show before the work starts
                     id: importTimer
                     interval: 80
                     onTriggered: {
-                        data.result = Browser.library.importProfile(data.picked.path, data.what)
-                        if (data.what.search && data.result.search) Browser.setSetting("search/template", data.result.search)
-                        data.step = 5
+                        io.result = Browser.library.importProfile(io.picked.path, io.what)
+                        if (io.what.search && io.result.search) Browser.setSetting("search/template", io.result.search)
+                        io.step = 5
                     }
                 }
 
                 // 4: working
                 Row {
-                    visible: data.step === 4
+                    visible: io.step === 4
                     spacing: 10
                     DotLoader { anchors.verticalCenter: parent.verticalCenter }
                     Text { text: qsTr("Importing…"); color: Theme.fg; font.pixelSize: Theme.px(13) }
@@ -203,7 +203,7 @@ ColumnLayout {
 
                 // 5: summary
                 ColumnLayout {
-                    visible: data.step === 5
+                    visible: io.step === 5
                     spacing: 8
                     Row {
                         spacing: 8
@@ -211,15 +211,15 @@ ColumnLayout {
                         Text { text: qsTr("Done"); color: Theme.fg; font.pixelSize: Theme.px(15); font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                     }
                     Text {
-                        text: data.result ? qsTr("Added %1 bookmarks and %2 pages of history.").arg(data.number(data.result.bookmarks)).arg(data.number(data.result.history))
-                                            + (data.what.search && data.result.search ? " " + qsTr("Search engine set.") : "") : ""
+                        text: io.result ? qsTr("Added %1 bookmarks and %2 pages of history.").arg(io.number(io.result.bookmarks)).arg(io.number(io.result.history))
+                                            + (io.what.search && io.result.search ? " " + qsTr("Search engine set.") : "") : ""
                         color: Theme.fg
                         font.pixelSize: Theme.px(13)
                     }
-                    Text { visible: data.result && data.result.error !== undefined; text: data.result && data.result.error ? data.result.error : ""; color: Theme.accent2; font.pixelSize: Theme.px(12) }
-                    Ui.Pill { text: qsTr("Import something else"); onClicked: data.step = 0 }
+                    Text { visible: io.result && io.result.error !== undefined; text: io.result && io.result.error ? io.result.error : ""; color: Theme.accent2; font.pixelSize: Theme.px(12) }
+                    Ui.Pill { text: qsTr("Import something else"); onClicked: io.step = 0 }
                 }
-                Text { id: htmlResult; visible: text !== "" && data.step === 0; color: Theme.fg; font.pixelSize: Theme.px(13) }
+                Text { id: htmlResult; visible: text !== "" && io.step === 0; color: Theme.fg; font.pixelSize: Theme.px(13) }
             }
         }
     }
@@ -253,7 +253,7 @@ ColumnLayout {
             label: qsTr("Passwords")
             hint: qsTr("Only from Passwords, after confirming it's you: the file isn't encrypted")
             last: true
-            Ui.Pill { text: qsTr("Passwords"); onClicked: data.openPasswords() }
+            Ui.Pill { text: qsTr("Passwords"); onClicked: io.openPasswords() }
         }
     }
 

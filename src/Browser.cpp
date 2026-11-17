@@ -35,6 +35,7 @@ Browser::Browser(QObject *parent)
       m_dataDir(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation))
 {
     QDir().mkpath(m_dataDir);
+    m_profiles = new Profiles(startProfile, this);
     m_library = new Library(m_dataDir + QStringLiteral("/library.db"), this);
     // Passwords: test runs ("f1int-test") get their own keychain entry, never the real one.
     m_vault = new PasswordVault(m_dataDir + QStringLiteral("/passwords.vault"),

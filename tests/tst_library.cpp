@@ -96,12 +96,39 @@ private slots:
         QCOMPARE(profiles.size(), 1);
         QCOMPARE(profiles[0].toMap()["name"].toString(), QString("Personal"));
 
+        lib.firefoxRoot = root.filePath("no-firefox-here");
+        const QVariantMap preview = lib.importProfile(profiles[0].toMap()["path"].toString(), { { "dryRun", true } });
+        QCOMPARE(preview["bookmarks"].toInt(), 2);         // a dry run counts...
+        QCOMPARE(lib.bookmarks().size(), 0);              // ...but adds nothing
         const QVariantMap result = lib.importProfile(profiles[0].toMap()["path"].toString());
         QCOMPARE(result["bookmarks"].toInt(), 2);          // including the one inside a folder
         QCOMPARE(result["history"].toInt(), 1);            // chrome:// and hidden entries skipped
         QVERIFY(!result.contains("error"));
         QCOMPARE(lib.history().first().toMap()["visits"].toInt(), 3);
         QCOMPARE(lib.importProfile(profiles[0].toMap()["path"].toString())["bookmarks"].toInt(), 0);   // no duplicates
+    }
+
+    void bookmarksHtmlRoundTrip()
+    {
+        QTemporaryDir dir;
+        const QString in = dir.filePath("in.html");
+        QFile f(in);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        // What browsers export: folders (<H3>), escaped titles, upper-case tags, a non-web link.
+        f.write("<!DOCTYPE NETSCAPE-Bookmark-file-1>\n<DL><p>\n<DT><H3>Work</H3>\n<DL><p>\n"
+                "<DT><A HREF=\"https://a.test/?x=1&amp;y=2\" ADD_DATE=\"1700000000\">Tom &amp; Jerry &lt;3</A>\n</DL><p>\n"
+                "<dt><a href=\"https://b.test/\">B</a>\n<DT><A HREF=\"javascript:alert(1)\">bad</A>\n</DL><p>\n");
+        f.close();
+        Library lib(QStringLiteral(":memory:"));
+        QCOMPARE(lib.importBookmarksHtml(QUrl::fromLocalFile(in)), 2);   // the javascript: link is skipped
+        QCOMPARE(lib.importBookmarksHtml(QUrl::fromLocalFile(in)), 0);   // nothing twice
+        QVERIFY(lib.isBookmarked(QUrl("https://a.test/?x=1&y=2")));
+        const QString out = dir.filePath("out.html");
+        QVERIFY(lib.exportBookmarksHtml(QUrl::fromLocalFile(out)));
+        Library other(QStringLiteral(":memory:"));
+        QCOMPARE(other.importBookmarksHtml(QUrl::fromLocalFile(out)), 2);
+        const QVariantList all = other.bookmarks();
+        QVERIFY(std::any_of(all.begin(), all.end(), [](const QVariant &b) { return b.toMap()["title"].toString() == "Tom & Jerry <3"; }));
     }
 };
 

@@ -5,6 +5,8 @@
 #include <QQuickWindow>
 #include <QSettings>
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
+#include "Browser.h"
+#include "Profiles.h"
 
 // Chromium command-line switches. Qt WebEngine reads them once, when it starts,
 // so they must be set before anything web-related is created.
@@ -35,9 +37,19 @@ int main(int argc, char *argv[])
     // UI test runs get their own data folder and settings, so they never touch the user's.
     // F1INT_TEST_NAME lets several test runs work side by side (each "f1int-test-…").
     const QString testName = qEnvironmentVariable("F1INT_TEST_NAME");
-    QCoreApplication::setApplicationName(!qEnvironmentVariableIsSet("F1INT_UI_TEST") ? QStringLiteral("f1int")
-                                         : testName.startsWith(QLatin1String("f1int-test")) ? testName
-                                                                                           : QStringLiteral("f1int-test"));
+    Profiles::family = !qEnvironmentVariableIsSet("F1INT_UI_TEST") ? QStringLiteral("f1int")
+                       : testName.startsWith(QLatin1String("f1int-test")) ? testName : QStringLiteral("f1int-test");
+    // --profile=<id> opens another local profile (see Profiles.h); "first" is the first one.
+    QString profile;
+    for (int i = 1; i < argc; ++i) {
+        const QString arg = QString::fromLocal8Bit(argv[i]);
+        if (arg.startsWith(QLatin1String("--profile=")))
+            profile = arg.mid(10) == QLatin1String("first") ? QString() : arg.mid(10);
+    }
+    if (!Profiles::validId(profile))
+        profile.clear();
+    QCoreApplication::setApplicationName(Profiles::appNameFor(profile));
+    Browser::startProfile = profile;
 
     applyChromiumFlags();
     QtWebEngineQuick::initialize();   // must come before the app object is created

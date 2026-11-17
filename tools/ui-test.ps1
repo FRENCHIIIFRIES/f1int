@@ -70,4 +70,5 @@ if ($p.HasExited) { "app exited, code $('0x{0:X8}' -f $p.ExitCode)" }
 elseif (-not (Select-String -Path $log -Pattern 'DONE' -Quiet)) { "app still running at the time limit, responding: $($p.Responding)" }
 Stop-Process -Id $p.Id -ErrorAction SilentlyContinue
 '--- warnings ---'
-Get-Content $log | Where-Object { $_ -notmatch 'SHOT|DONE|WebEngineProfilePrototype' } | Select-Object -First 30
+Get-Content $log | Where-Object { $_ -match 'qml: (PASS|FAIL) ' }   # every check, always
+Get-Content $log | Where-Object { $_ -notmatch 'SHOT|DONE|WebEngineProfilePrototype|qml: (PASS|FAIL) |gpu_channel_manager|GPUInfo|QFontDatabase|no longer ships fonts' } | Select-Object -First 30

@@ -174,6 +174,80 @@ Rectangle {
         ColumnLayout {
             spacing: 22
             Ui.Section {
+                title: qsTr("Profiles")
+                Repeater {
+                    model: Browser.profiles.list
+                    Ui.SettingRow {
+                        id: profileRow
+                        required property var modelData
+                        label: modelData.name
+                        hint: modelData.current ? qsTr("This window") : qsTr("Separate bookmarks, history, passwords and settings")
+                        Row {
+                            spacing: 8
+                            Ui.Avatar { width: 30; height: 30; name: profileRow.modelData.name; picture: profileRow.modelData.picture; anchors.verticalCenter: parent.verticalCenter }
+                            Ui.Field {
+                                width: 150
+                                text: profileRow.modelData.name
+                                maximumLength: 40
+                                onEditingFinished: Browser.profiles.rename(profileRow.modelData.id, text)
+                                Accessible.name: qsTr("Profile name")
+                            }
+                            Ui.Pill { text: qsTr("Picture…"); onClicked: { pictureDialog.profileId = profileRow.modelData.id; pictureDialog.open() } }
+                            Ui.Pill { visible: !profileRow.modelData.current; text: qsTr("Open"); onClicked: Browser.profiles.open(profileRow.modelData.id) }
+                            IconButton {
+                                visible: !profileRow.modelData.current && profileRow.modelData.id !== ""
+                                iconName: "trash"
+                                iconColor: Theme.dim
+                                tip: qsTr("Delete this profile")
+                                onClicked: { deleteProfile.target = profileRow.modelData; deleteProfile.open() }
+                            }
+                        }
+                    }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Add a profile")
+                    hint: profileMessage.text !== "" ? profileMessage.text : qsTr("For another person, or to keep work and home apart. Opens in its own window.")
+                    last: true
+                    Text { id: profileMessage; visible: false }
+                    Ui.Pill { primary: true; text: qsTr("Add profile"); onClicked: Browser.profiles.open(Browser.profiles.add("")) }
+                }
+            }
+            FileDialog {
+                id: pictureDialog
+                property string profileId: ""
+                nameFilters: [qsTr("Pictures (*.png *.jpg *.jpeg *.webp *.bmp *.gif)")]
+                onAccepted: if (!Browser.profiles.setPicture(profileId, selectedFile)) profileMessage.text = qsTr("That picture couldn't be read.")
+            }
+            Popup {
+                id: deleteProfile
+                property var target: null
+                anchors.centerIn: Overlay.overlay
+                modal: true
+                padding: 20
+                width: 380
+                background: Rectangle { color: Theme.surface; radius: Theme.cardRadius; border.width: 1; border.color: Theme.line }
+                contentItem: Column {
+                    spacing: 12
+                    Text { text: deleteProfile.target ? qsTr("Delete %1?").arg(deleteProfile.target.name) : ""; color: Theme.fg; font.pixelSize: Theme.px(16); font.weight: Font.DemiBold }
+                    Text {
+                        width: parent.width
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Its bookmarks, history, saved passwords, settings and website logins are deleted from this computer. This can't be undone.")
+                        color: Theme.dim
+                        font.pixelSize: Theme.px(13)
+                    }
+                    Row {
+                        spacing: 8
+                        Ui.Pill {
+                            primary: true
+                            text: qsTr("Delete profile")
+                            onClicked: { profileMessage.text = Browser.profiles.remove(deleteProfile.target.id); deleteProfile.close() }
+                        }
+                        Ui.Pill { text: qsTr("Cancel"); onClicked: deleteProfile.close() }
+                    }
+                }
+            }
+            Ui.Section {
                 title: qsTr("Search and home")
                 Ui.SettingRow {
                     label: qsTr("Search engine")

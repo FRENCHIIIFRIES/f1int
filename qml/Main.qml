@@ -29,7 +29,9 @@ ApplicationWindow {
     height: 820
     visible: true
     color: Theme.chrome   // the frame around the page (see-through only with frosted glass on)
-    title: (view && view.title ? view.title : qsTr("New tab")) + (incognito ? " – f1int Incognito" : " – f1int")
+    // The profile's name shows in the title once there's more than one profile.
+    title: (view && view.title ? view.title : qsTr("New tab")) + (incognito ? " – f1int Incognito"
+           : Browser.profiles.list.length > 1 ? " – " + Browser.profiles.currentName + " – f1int" : " – f1int")
     palette.toolTipBase: Theme.surface
     palette.toolTipText: Theme.fg
 
@@ -423,6 +425,8 @@ ApplicationWindow {
         }
     }
 
+    ProfileMenu { id: profileMenu; onManageRequested: window.showSettings("general") }
+
     // A short message at the bottom of the page (e.g. "No article found").
     function flash(text) { flashText.text = text; flashBox.opacity = 1; flashTimer.restart() }
     Timer { id: flashTimer; interval: 2600; onTriggered: flashBox.opacity = 0 }
@@ -767,6 +771,7 @@ ApplicationWindow {
         activeDownloads: window.activeDownloads
         onMenuRequested: (button) => mainMenu.popup(button, button.width - mainMenu.width, button.height + 4)
         onPanelRequested: (name) => window.showPanel(name)
+        onProfileRequested: (button) => profileMenu.popup(button, button.width - profileMenu.width, button.height + 6)
         onKeyRequested: (button) => {
             keyMenu.logins = Browser.passwords.state === "unlocked" ? Browser.passwords.loginsFor(window.view.url) : []
             keyMenu.popup(button, button.width - keyMenu.width, button.height + 6)
