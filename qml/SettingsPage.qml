@@ -20,6 +20,7 @@ Rectangle {
 
     readonly property var categories: [
         { id: "general", icon: "home", label: qsTr("General") },
+        { id: "account", icon: "user", label: qsTr("Account and sync") },
         { id: "appearance", icon: "edit", label: qsTr("Appearance") },
         { id: "sidebar", icon: "sidebar", label: qsTr("Sidebar") },
         { id: "tabs", icon: "window", label: qsTr("Tabs and memory") },
@@ -145,7 +146,7 @@ Rectangle {
                     Loader {
                         Layout.fillWidth: true
                         active: parent.visible
-                        sourceComponent: ({ general: general, appearance: appearance, sidebar: sidebarPage, tabs: tabsPage, newtab: newtabPage,
+                        sourceComponent: ({ general: general, account: accountPage, appearance: appearance, sidebar: sidebarPage, tabs: tabsPage, newtab: newtabPage,
                                             privacy: privacy, data: dataPage, downloads: downloadsPage, extensions: extensionsPage,
                                             advanced: advanced })[parent.modelData.id]
                     }
@@ -303,6 +304,7 @@ Rectangle {
         }
     }
     Component { id: appearance; ThemeStudio {} }
+    Component { id: accountPage; AccountPage {} }
     Component {
         id: sidebarPage
         ColumnLayout {

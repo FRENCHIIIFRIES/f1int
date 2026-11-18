@@ -42,6 +42,7 @@ Browser::Browser(QObject *parent)
                                 QCoreApplication::applicationName() + QStringLiteral("-vault-key"), this);
     m_vault->setProperty("autoLockMinutes", setting(QStringLiteral("passwords/autoLockMinutes"), 15).toInt());
     m_nonce = QString::fromLatin1(QUuid::createUuid().toRfc4122().toHex());   // new secret every start
+    m_account = new Account(this, this);   // optional account + encrypted sync (signed out unless you sign in)
 
     // One shared profile for all normal tabs, saved on disk (cookies, cache, site logins).
     // A named profile is saved; an unnamed one is thrown away on exit (used for incognito).

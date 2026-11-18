@@ -47,6 +47,7 @@ qt_add_executable(f1int WIN32 MACOSX_BUNDLE
     src/AdBlocker.h src/AdBlocker.cpp
     src/MemoryStats.h src/MemoryStats.cpp
     src/Profiles.h src/Profiles.cpp
+    src/Account.h src/Account.cpp src/SyncMerge.h
 )
 target_compile_definitions(f1int PRIVATE F1INT_VERSION="${PROJECT_VERSION}")
 # Windows Hello / Touch ID for unlocking passwords.
@@ -100,6 +101,7 @@ qt_add_qml_module(f1int
         qml/ImportExport.qml
         qml/Extensions.qml
         qml/ProfileMenu.qml
+        qml/AccountPage.qml
 )
 
 # Icons, logo, dot-matrix font and the starter ad-block list, built into the program
@@ -199,3 +201,8 @@ qt_add_executable(tst_adblocker tests/tst_adblocker.cpp src/AdBlocker.cpp src/Ad
 target_include_directories(tst_adblocker PRIVATE src)
 target_link_libraries(tst_adblocker PRIVATE Qt6::Test Qt6::WebEngineCore)
 add_test(NAME adblocker COMMAND tst_adblocker)
+
+qt_add_executable(tst_sync tests/tst_sync.cpp src/SyncMerge.h)
+target_include_directories(tst_sync PRIVATE src)
+target_link_libraries(tst_sync PRIVATE Qt6::Test)
+add_test(NAME sync COMMAND tst_sync)

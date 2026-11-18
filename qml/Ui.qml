@@ -107,7 +107,7 @@ QtObject {
                 y: 3
                 x: toggle.checked ? parent.width - width - 3 : 3
                 // White knob on the accent colour (dark knob only on a very light accent).
-                color: toggle.checked ? (Theme.accent.hslLightness > 0.7 ? "#000000" : "#ffffff") : Theme.fg
+                color: toggle.checked ? Theme.textOnAccent : Theme.fg
                 Behavior on x { NumberAnimation { duration: Theme.anim; easing.type: Easing.OutCubic } }
             }
         }

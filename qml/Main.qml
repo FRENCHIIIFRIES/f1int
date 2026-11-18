@@ -425,7 +425,7 @@ ApplicationWindow {
         }
     }
 
-    ProfileMenu { id: profileMenu; onManageRequested: window.showSettings("general") }
+    ProfileMenu { id: profileMenu; onManageRequested: window.showSettings("general"); onAccountRequested: window.showSettings("account") }
 
     // A short message at the bottom of the page (e.g. "No article found").
     function flash(text) { flashText.text = text; flashBox.opacity = 1; flashTimer.restart() }
@@ -771,7 +771,12 @@ ApplicationWindow {
         activeDownloads: window.activeDownloads
         onMenuRequested: (button) => mainMenu.popup(button, button.width - mainMenu.width, button.height + 4)
         onPanelRequested: (name) => window.showPanel(name)
-        onProfileRequested: (button) => profileMenu.popup(button, button.width - profileMenu.width, button.height + 6)
+        onProfileRequested: (button) => {   // (a Popup, not a Menu: placed by hand under the button)
+            profileMenu.parent = button
+            profileMenu.x = button.width - profileMenu.width
+            profileMenu.y = button.height + 6
+            profileMenu.open()
+        }
         onKeyRequested: (button) => {
             keyMenu.logins = Browser.passwords.state === "unlocked" ? Browser.passwords.loginsFor(window.view.url) : []
             keyMenu.popup(button, button.width - keyMenu.width, button.height + 6)

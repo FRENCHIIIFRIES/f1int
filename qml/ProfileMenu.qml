@@ -8,6 +8,8 @@ import f1int
 Popup {
     id: menu
     signal manageRequested()
+    signal accountRequested()
+    readonly property var acc: Browser.account
     width: 300
     padding: 14
     background: Rectangle { color: Theme.surface; radius: Theme.cardRadius; border.width: 1; border.color: Theme.line }
@@ -33,7 +35,11 @@ Popup {
                 x: 10; y: 10
                 width: parent.width - 20
                 wrapMode: Text.WordWrap
-                text: qsTr("Not signed in to an f1int account. Sync between computers isn't available yet.")
+                text: menu.acc.state !== "signedIn" ? qsTr("Not signed in. Sign in to sync bookmarks, settings and themes between your computers.")
+                      : !menu.acc.syncOn ? qsTr("Signed in as %1. Sync is off.").arg(menu.acc.username || menu.acc.email)
+                      : qsTr("Signed in as %1. %2 · %3 computers").arg(menu.acc.username || menu.acc.email)
+                           .arg(menu.acc.syncStatus === "syncing" ? qsTr("Syncing…") : menu.acc.syncStatus === "error" ? qsTr("Sync problem") : qsTr("Synced"))
+                           .arg(menu.acc.devices.length)
                 color: Theme.dim
                 font.pixelSize: Theme.px(11)
             }
@@ -65,6 +71,11 @@ Popup {
                 onClicked: { Browser.profiles.open(Browser.profiles.add("")); menu.close() }
             }
             Ui.Pill { text: qsTr("Manage"); onClicked: { menu.manageRequested(); menu.close() } }
+            Ui.Pill {
+                primary: menu.acc.state !== "signedIn"
+                text: menu.acc.state === "signedIn" ? qsTr("Account") : qsTr("Sign in")
+                onClicked: { menu.accountRequested(); menu.close() }
+            }
         }
     }
 }
