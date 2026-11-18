@@ -139,6 +139,7 @@ Rectangle {
                     Text {
                         text: parent.modelData.label
                         color: Theme.fg
+                        font.family: Theme.headingFamily
                         font.pixelSize: Theme.px(26)
                         font.weight: Font.DemiBold
                         visible: searchField.text === ""
@@ -570,6 +571,44 @@ Rectangle {
         id: advanced
         ColumnLayout {
             spacing: 22
+            Ui.Section {
+                id: updates
+                title: qsTr("Updates")
+                readonly property var up: Browser.updater
+                Ui.SettingRow {
+                    label: qsTr("f1int %1").arg(updates.up.current)
+                    hint: !updates.up.supported ? qsTr("This copy can't update itself (it isn't an installed one). Get new versions from GitHub.")
+                          : updates.up.state === "checking" ? qsTr("Checking…")
+                          : updates.up.state === "upToDate" ? qsTr("You have the newest version.")
+                          : updates.up.state === "available" ? qsTr("Version %1 is ready to download.").arg(updates.up.latest)
+                          : updates.up.state === "downloading" ? qsTr("Downloading %1… %2%").arg(updates.up.latest).arg(Math.round(updates.up.progress * 100))
+                          : updates.up.state === "ready" ? qsTr("Version %1 is downloaded and checked. f1int restarts to finish; your tabs come back.").arg(updates.up.latest)
+                          : updates.up.state === "error" ? updates.up.error
+                          : qsTr("Updates come from f1int's releases on GitHub, checked against their fingerprint before installing.")
+                    Row {
+                        spacing: 8
+                        visible: updates.up.supported
+                        DotLoader { visible: updates.up.state === "checking" || updates.up.state === "downloading"; anchors.verticalCenter: parent.verticalCenter }
+                        Ui.Pill {
+                            visible: updates.up.state !== "available" && updates.up.state !== "ready" && updates.up.state !== "downloading"
+                            text: qsTr("Check now"); enabled: updates.up.state !== "checking"; onClicked: updates.up.check()
+                        }
+                        Ui.Pill { visible: updates.up.state === "available"; primary: true; text: qsTr("Download"); onClicked: updates.up.download() }
+                        Ui.Pill { visible: updates.up.state === "ready"; primary: true; text: qsTr("Restart and update"); onClicked: updates.up.install() }
+                    }
+                }
+                Ui.SettingRow {
+                    visible: updates.up.notes !== "" && (updates.up.state === "available" || updates.up.state === "ready")
+                    label: qsTr("What's new")
+                    hint: updates.up.notes
+                }
+                Ui.SettingRow {
+                    label: qsTr("Check automatically")
+                    hint: qsTr("Once a day. Only asks GitHub which version is newest; nothing about you is sent.")
+                    last: true
+                    Ui.Toggle { checked: page.get("updates/auto", true); onToggled: page.set("updates/auto", checked) }
+                }
+            }
             Ui.Section {
                 title: qsTr("Getting started")
                 Ui.SettingRow {

@@ -36,6 +36,8 @@ Browser::Browser(QObject *parent)
 {
     QDir().mkpath(m_dataDir);
     m_profiles = new Profiles(startProfile, this);
+    m_assets = new Assets(m_dataDir + QStringLiteral("/assets"), this);
+    m_updater = new Updater(this);   // checks GitHub once a day (Settings > Advanced > Updates)
     m_library = new Library(m_dataDir + QStringLiteral("/library.db"), this);
     // Passwords: test runs ("f1int-test") get their own keychain entry, never the real one.
     m_vault = new PasswordVault(m_dataDir + QStringLiteral("/passwords.vault"),

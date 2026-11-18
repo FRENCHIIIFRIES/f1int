@@ -73,7 +73,12 @@ jobs:
         shell: pwsh
         env:
           QT_ROOT: ${{ runner.temp }}\Qt
-        run: ./build.ps1 -Test -Package
+        run: |
+          ./build.ps1 -Test -Package
+          # The in-app updater downloads this .zip and checks it against SHA256SUMS.txt.
+          ./build.ps1 -Zip
+          Get-ChildItem build/package/*.zip | ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } |
+            Set-Content -Encoding ascii build/package/SHA256SUMS.txt
 
       - name: Build, test and package (Mac)
         if: runner.os == 'macOS'
@@ -98,6 +103,8 @@ jobs:
           name: f1int-${{ matrix.name }}
           path: |
             build/package/*.exe
+            build/package/*.zip
+            build/package/SHA256SUMS.txt
             build/package/*.dmg
           if-no-files-found: error
 
@@ -108,4 +115,6 @@ jobs:
           prerelease: ${{ startsWith(github.ref_name, 'v0.') }}   # 0.x = early preview
           files: |
             build/package/*.exe
+            build/package/*.zip
+            build/package/SHA256SUMS.txt
             build/package/*.dmg

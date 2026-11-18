@@ -425,6 +425,18 @@ ApplicationWindow {
         }
     }
 
+    // A new version: say so once, quietly.
+    Connections {
+        target: Browser.updater
+        function onChanged() {
+            if (Browser.updater.state === "available" && window.active && !window.updateNoted) {
+                window.updateNoted = true
+                window.flash(qsTr("f1int %1 is out. Settings > Advanced > Updates").arg(Browser.updater.latest))
+            }
+        }
+    }
+    property bool updateNoted: false
+
     ProfileMenu { id: profileMenu; onManageRequested: window.showSettings("general"); onAccountRequested: window.showSettings("account") }
 
     // A short message at the bottom of the page (e.g. "No article found").
@@ -489,6 +501,14 @@ ApplicationWindow {
     }
 
     // ---------- layout ----------
+    // The window's background (Settings > Appearance > Backgrounds): a colour, a gradient,
+    // a picture or a pattern. The tab column and toolbar can be see-through over it.
+    Fill {
+        z: -10
+        anchors.fill: parent
+        spec: Theme.windowFill
+        base: Theme.chrome
+    }
     // ---- The address bar's own row across the top of the window (the default layout) ----
     Item {
         id: windowBar
@@ -496,7 +516,7 @@ ApplicationWindow {
         anchors.right: parent.right
         anchors.top: parent.top
         height: Theme.addressPlace === "window" && !window.fullScreen ? 46 + window.bookmarksBarHeight : 0
-        Rectangle { anchors.fill: parent; color: Theme.toolbar; visible: parent.height > 0 }
+        Fill { anchors.fill: parent; visible: parent.height > 0; spec: Theme.toolbarFill; base: Theme.toolbar }
         Rectangle {   // a thin line separates the bar from the tabs and the page below
             anchors.bottom: parent.bottom
             width: parent.width
@@ -543,7 +563,8 @@ ApplicationWindow {
             visible: (window.toolbarOnTop || window.bookmarksBarHeight > 0) && Theme.addressPlace !== "window" && !window.fullScreen
             Layout.fillWidth: true
             Layout.preferredHeight: visible ? (window.toolbarOnTop ? 46 : 0) + window.bookmarksBarHeight : 0
-            color: Theme.toolbar
+            color: "transparent"
+            Fill { anchors.fill: parent; spec: Theme.toolbarFill; base: Theme.toolbar }
             Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: Theme.line }
         }
 
@@ -553,6 +574,15 @@ ApplicationWindow {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.margins: window.fullScreen ? 0 : Theme.inset
+            // Over a picture or gradient the corners must be cut from the page itself (costs a
+            // little GPU time); over a plain colour, painted caps do it for free (below).
+            layer.enabled: Theme.hasWallpaper && !window.fullScreen && Theme.inset > 0
+            layer.effect: MultiEffect {
+                maskEnabled: true
+                maskSource: cardMask
+                maskThresholdMin: 0.5
+                maskSpreadAtMin: 1.0
+            }
             Rectangle {   // background; see-through for the new tab page so the glass shows
                 anchors.fill: parent
                 color: window.showNewTabPage ? "transparent" : Theme.bg
@@ -726,7 +756,7 @@ ApplicationWindow {
             // Rounded corners: frame-coloured caps drawn over the page's square corners
             // (much cheaper than masking a live web page), plus a hairline edge.
             Repeater {
-                model: window.fullScreen || Theme.inset === 0 ? 0 : 4
+                model: window.fullScreen || Theme.inset === 0 || Theme.hasWallpaper ? 0 : 4
                 Canvas {
                     required property int index
                     readonly property int r: Theme.cardRadius
@@ -754,6 +784,15 @@ ApplicationWindow {
                 border.color: Theme.line
             }
         }
+    }
+
+    Rectangle {   // the page's shape, used as the mask above (not drawn)
+        id: cardMask
+        width: card.width
+        height: card.height
+        radius: Theme.cardRadius
+        visible: false
+        layer.enabled: Theme.hasWallpaper
     }
 
     // The toolbar: at the top of the tab bar (stacked), or above the page when the bar is collapsed.

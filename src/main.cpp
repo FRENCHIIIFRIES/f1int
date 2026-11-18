@@ -7,6 +7,8 @@
 #include <QtWebEngineQuick/qtwebenginequickglobal.h>
 #include "Browser.h"
 #include "Profiles.h"
+#include "Assets.h"
+#include <QStandardPaths>
 
 // Chromium command-line switches. Qt WebEngine reads them once, when it starts,
 // so they must be set before anything web-related is created.
@@ -71,6 +73,9 @@ int main(int argc, char *argv[])
     }
 
     QQmlApplicationEngine engine;
+    // image://icons/... : f1int's icons at any stroke weight, and icons from your own packs.
+    engine.addImageProvider(QStringLiteral("icons"),
+                            new IconProvider(new Assets(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/assets"), &app)));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreationFailed, &app,
                      [] { QCoreApplication::exit(1); }, Qt::QueuedConnection);
     engine.loadFromModule("f1int", "Main");   // loads qml/Main.qml

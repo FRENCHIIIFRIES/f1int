@@ -40,7 +40,7 @@ Item {
         radius: Theme.tabRadius
         // Open tab: raised fill + hairline (pill/square), or an accent bar (line style).
         readonly property bool filled: row.current && Theme.tabStyle !== "line"
-        color: filled ? Theme.tab : hover.hovered && Theme.hoverEffects ? Theme.hover : "transparent"
+        color: filled ? Theme.tab : hover.hovered && Theme.hoverEffects ? Theme.hover : Theme.tabIdle
         border.width: filled ? 1 : 0
         border.color: Theme.line
         opacity: row.asleep && !row.current ? 0.5 : 1   // sleeping tabs are faded

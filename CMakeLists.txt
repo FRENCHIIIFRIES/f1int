@@ -1,7 +1,7 @@
-# CMake is the build recipe: it tells the compiler which files make up f1int
+﻿# CMake is the build recipe: it tells the compiler which files make up f1int
 # and which Qt libraries to link against.
 cmake_minimum_required(VERSION 3.21)
-project(f1int VERSION 0.1.0 LANGUAGES CXX)
+project(f1int VERSION 0.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -48,12 +48,16 @@ qt_add_executable(f1int WIN32 MACOSX_BUNDLE
     src/MemoryStats.h src/MemoryStats.cpp
     src/Profiles.h src/Profiles.cpp
     src/Account.h src/Account.cpp src/SyncMerge.h
+    src/Assets.h src/Assets.cpp
+    src/Updater.h src/Updater.cpp
 )
 target_compile_definitions(f1int PRIVATE F1INT_VERSION="${PROJECT_VERSION}")
 # Windows Hello / Touch ID for unlocking passwords.
 target_sources(f1int PRIVATE src/DeviceAuth.h src/DeviceAuth.cpp)
 if(WIN32)
     target_sources(f1int PRIVATE resources/f1int.rc)   # the .exe icon
+    # The resource compiler doesn't track the icon file itself: rebuild the .rc when the logo changes.
+    set_source_files_properties(resources/f1int.rc PROPERTIES OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/resources/logo/f1int.ico)
     target_link_libraries(f1int PRIVATE windowsapp dwmapi)   # Windows Hello; frosted-glass window
     # Microsoft's C++/WinRT headers need C++20 (coroutines); only this one file uses them.
     set_source_files_properties(src/DeviceAuth.cpp PROPERTIES COMPILE_OPTIONS "/std:c++20")
@@ -102,6 +106,8 @@ qt_add_qml_module(f1int
         qml/Extensions.qml
         qml/ProfileMenu.qml
         qml/AccountPage.qml
+        qml/Fill.qml
+        qml/PatternCanvas.qml
 )
 
 # Icons, logo, dot-matrix font and the starter ad-block list, built into the program
@@ -206,3 +212,13 @@ qt_add_executable(tst_sync tests/tst_sync.cpp src/SyncMerge.h)
 target_include_directories(tst_sync PRIVATE src)
 target_link_libraries(tst_sync PRIVATE Qt6::Test)
 add_test(NAME sync COMMAND tst_sync)
+
+qt_add_executable(tst_assets tests/tst_assets.cpp src/Assets.cpp src/Assets.h)
+target_include_directories(tst_assets PRIVATE src)
+target_link_libraries(tst_assets PRIVATE Qt6::Test Qt6::Quick Qt6::Svg)
+add_test(NAME assets COMMAND tst_assets)
+
+qt_add_executable(tst_updater tests/tst_updater.cpp src/Updater.cpp src/Updater.h)
+target_include_directories(tst_updater PRIVATE src)
+target_link_libraries(tst_updater PRIVATE Qt6::Test Qt6::Network Qt6::Qml)
+add_test(NAME updater COMMAND tst_updater)

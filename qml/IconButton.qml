@@ -7,7 +7,7 @@ Button {
     id: button
     property string iconName
     property string tip            // tooltip, also read out by screen readers
-    property color iconColor: Theme.fg
+    property color iconColor: Theme.iconColor
     property int iconSize: 16
 
     implicitWidth: 30

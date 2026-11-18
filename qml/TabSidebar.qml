@@ -71,8 +71,14 @@ Rectangle {
         enabled: !resizer.pressed
         NumberAnimation { duration: Theme.anim; easing.type: Easing.OutCubic }
     }
-    color: Theme.glass ? Qt.rgba(Theme.sidebar.r, Theme.sidebar.g, Theme.sidebar.b, Theme.glassTint) : Theme.sidebar
+    color: "transparent"
     clip: true
+    Fill {   // its background (Appearance > Backgrounds); see-through over a wallpaper if you like
+        z: -1
+        anchors.fill: parent
+        spec: Theme.sidebarFill
+        base: Theme.glass ? Qt.rgba(Theme.sidebar.r, Theme.sidebar.g, Theme.sidebar.b, Theme.glassTint) : Theme.sidebar
+    }
 
     HoverHandler {
         id: hover

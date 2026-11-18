@@ -23,13 +23,20 @@ QtObject {
                     panel: "#131924", raised: "#1b2230", fg: "#e6eaf2", dim: "#8a94a8", accent: "#6ea8ff", accent2: "#5fd4c4" },
         crimson:  { name: "Crimson",  light: false, frame: "#131112", sidebar: "#0b0a0a", toolbar: "#191617", field: "#262223", tab: "#231f20",
                     panel: "#171415", raised: "#201c1d", fg: "#eeeaea", dim: "#978f90", accent: "#e5484d", accent2: "#d9d2d2" },
-        paper:    { name: "Paper",    light: true,  frame: "#ecebe7", sidebar: "#e1e0db", toolbar: "#f5f4f1", field: "#e7e6e1", tab: "#fbfaf8",
+        mono:     { name: "Minimal mono", light: true, frame: "#f2f2f2", sidebar: "#e8e8e8", toolbar: "#f8f8f8", field: "#ececec", tab: "#ffffff",
+                    panel: "#ffffff", raised: "#ffffff", fg: "#0a0a0a", dim: "#6b6b6b", accent: "#0a0a0a", accent2: "#d71921" },
+        blank:    { name: "Blank",    light: false, frame: "#1d1d1d", sidebar: "#1d1d1d", toolbar: "#1d1d1d", field: "#2b2b2b", tab: "#2b2b2b",
+                    panel: "#1d1d1d", raised: "#252525", fg: "#e6e6e6", dim: "#8c8c8c", accent: "#bdbdbd", accent2: "#bdbdbd" },
+        paper:    { name: "Warm Paper", light: true,  frame: "#ecebe7", sidebar: "#e1e0db", toolbar: "#f5f4f1", field: "#e7e6e1", tab: "#fbfaf8",
                     panel: "#fbfaf8", raised: "#ffffff", fg: "#1c1b19", dim: "#68655f", accent: "#1c1b19", accent2: "#b7791f" },
         frost:    { name: "Frost",    light: true,  frame: "#e8edf2", sidebar: "#dbe2ea", toolbar: "#f4f7fa", field: "#e3e9ef", tab: "#ffffff",
                     panel: "#ffffff", raised: "#ffffff", fg: "#16202b", dim: "#5a6878", accent: "#2f6fdf", accent2: "#0f8f80" }
     })
-    readonly property var presetOrder: ["nothing", "obsidian", "midnight", "crimson", "paper", "frost"]
-    readonly property var roles: ["frame", "sidebar", "toolbar", "field", "tab", "panel", "raised", "fg", "dim", "accent", "accent2"]
+    readonly property var presetOrder: ["nothing", "mono", "obsidian", "midnight", "crimson", "paper", "frost", "blank"]
+    readonly property var roles: ["frame", "sidebar", "toolbar", "field", "tab", "panel", "raised", "fg", "dim", "accent", "accent2",
+                                  "tabIdle", "icon", "border", "hover"]
+    // Parts every preset leaves to be worked out from its text colour unless you set them.
+    readonly property var derived: ({ tabIdle: "#00000000", icon: "", border: "", hover: "" })
 
     // ---------- light / dark ----------
     readonly property string mode: setting("appearance/theme", "dark")       // dark | light | system
@@ -46,8 +53,10 @@ QtObject {
     // A colour for a role: your change for this preset if you made one, else the preset's.
     function role(name) {
         const own = String(setting("appearance/custom/" + preset + "/" + name, ""))
-        return /^#[0-9a-fA-F]{6}$/.test(own) ? own : base[name]
+        return colourOk(own) ? own : base[name] !== undefined ? base[name] : derived[name]
     }
+    // "#rrggbb", or "#aarrggbb" (Qt's order) for see-through colours.
+    function colourOk(c) { return /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(String(c)) }
     function isCustomised(name) { return /^#/.test(String(setting("appearance/custom/" + preset + "/" + name, ""))) }
 
     // ---------- surfaces ----------
@@ -73,8 +82,10 @@ QtObject {
     // Lines, hover and press tints come from the text colour, so they suit any surface.
     readonly property real lineStrength: Number(setting("appearance/lines", 1))      // 0 none ... 2 strong
     function ink(alpha) { return Qt.rgba(fg.r, fg.g, fg.b, alpha) }
-    readonly property color line:     ink((dark ? 0.08 : 0.10) * lineStrength)
-    readonly property color hover:    ink(dark ? 0.06 : 0.05)
+    readonly property color line:     role("border") !== "" ? role("border") : ink((dark ? 0.08 : 0.10) * lineStrength)
+    readonly property color hover:    role("hover") !== "" ? role("hover") : ink(dark ? 0.06 : 0.05)
+    readonly property color tabIdle:  role("tabIdle")                       // tabs that aren't open
+    readonly property color iconColor: role("icon") !== "" ? role("icon") : fg
     readonly property color press:    ink(dark ? 0.12 : 0.10)
     readonly property color selected: tab                                   // the open tab
 
@@ -141,6 +152,38 @@ QtObject {
     readonly property int anim: Browser.reduceMotion || motion === "off" ? 0 : motion === "fast" ? 110 : motion === "relaxed" ? 260 : 180
     readonly property bool hoverEffects: setting("appearance/hoverEffects", true)
 
+    // ---------- backgrounds ----------
+    // The window (behind everything), the tab column and the toolbar can each have a colour,
+    // a gradient, a picture or a pattern, per preset. Stored as JSON.
+    readonly property var surfaces: ["window", "sidebar", "toolbar"]
+    readonly property var fillDefaults: ({ type: "solid", colors: [], angle: 160, image: "", fit: "fill", position: "center",
+                                           dim: 0, blur: 0, pattern: "dots", patternColor: "", patternScale: 1, patternOpacity: 0.14, opacity: 1 })
+    function fill(surface) {
+        let own = {}
+        try { own = JSON.parse(String(setting("appearance/fill/" + preset + "/" + surface, "{}"))) || {} } catch (e) {}
+        return Object.assign({}, fillDefaults, own)
+    }
+    function setFill(surface, change) {
+        const now = fill(surface)
+        Browser.setSetting("appearance/fill/" + preset + "/" + surface, JSON.stringify(Object.assign(now, change)))
+    }
+    readonly property var windowFill: fill("window")
+    readonly property var sidebarFill: fill("sidebar")
+    readonly property var toolbarFill: fill("toolbar")
+    // A picture anywhere behind the tab column or toolbar: they may be see-through then.
+    readonly property bool hasWallpaper: windowFill.type !== "solid"
+
+    // ---------- icons, loading, headings ----------
+    readonly property real iconWeight: Number(setting("appearance/iconWeight", 1.75))   // line thickness of f1int's icons
+    readonly property var iconMap: { try { return JSON.parse(String(setting("appearance/icons", "{}"))) || {} } catch (e) { return {} } }
+    function iconSource(glyph) {
+        return !glyph ? "" : iconMap[glyph] ? "image://icons/asset/" + iconMap[glyph] : "image://icons/" + glyph + "?w=" + iconWeight
+    }
+    readonly property string loaderStyle: String(setting("appearance/loader", "dots"))   // dots | spinner | pulse | bar | image
+    readonly property string loaderImage: String(setting("appearance/loaderImage", ""))
+    readonly property string headingStyle: String(setting("appearance/headingFont", "system"))   // system | dot
+    readonly property string headingFamily: headingStyle === "dot" ? dotFont : Qt.application.font.family
+
     // Tab group colours (work on light and dark surfaces).
     readonly property var groupColors: ["#9b7bff", "#f2c94c", "#4c8df6", "#3fa877", "#e0569b", "#e5484d", "#8a8a8a"]
 
@@ -151,22 +194,36 @@ QtObject {
         "appearance/density", "appearance/inset", "appearance/motion", "appearance/hoverEffects", "tabs/style", "tabs/height",
         "tabs/gap", "sidebar/depth", "sidebar/iconSize", "sidebar/labels", "sidebar/shortcuts", "sidebar/newTabRow",
         "sidebar/pinned", "layout/tabsSide", "layout/address", "layout/showHome", "layout/showDownloads", "layout/showTabCount",
-        "layout/showRam", "layout/bookmarksBar"]
+        "layout/showRam", "layout/bookmarksBar", "appearance/iconWeight", "appearance/icons", "appearance/loader",
+        "appearance/loaderImage", "appearance/headingFont"]
+    // Per-preset keys: colours of every part and the backgrounds.
+    function presetKeys() {
+        const keys = []
+        for (const p of presetOrder) {
+            for (const r of roles) keys.push("appearance/custom/" + p + "/" + r)
+            for (const f of surfaces) keys.push("appearance/fill/" + p + "/" + f)
+        }
+        return keys
+    }
     function snapshot() {   // the current look as plain data
         const values = {}
         for (const k of lookKeys) values[k] = Browser.setting(k, null)
-        for (const p of presetOrder) for (const r of roles) {
-            const v = String(Browser.setting("appearance/custom/" + p + "/" + r, ""))
-            if (v !== "") values["appearance/custom/" + p + "/" + r] = v
+        for (const k of presetKeys()) {
+            const v = String(Browser.setting(k, ""))
+            if (v !== "") values[k] = v
         }
         return values
     }
-    function apply(values) {   // put a saved look back
+    function apply(values, remember) {   // put a saved look back (remember: false = not as an undo step)
+        history.quiet = true   // one step in the undo list, not hundreds
         for (const k of lookKeys) Browser.resetSetting(k)
-        for (const p of presetOrder) for (const r of roles) Browser.resetSetting("appearance/custom/" + p + "/" + r)
+        for (const k of presetKeys()) Browser.resetSetting(k)
         for (const k in values)
-            if ((lookKeys.indexOf(k) >= 0 || k.startsWith("appearance/custom/")) && values[k] !== null && values[k] !== undefined)
+            if ((lookKeys.indexOf(k) >= 0 || k.startsWith("appearance/custom/") || k.startsWith("appearance/fill/")) && values[k] !== null && values[k] !== undefined)
                 Browser.setSetting(k, values[k])
+        history.quiet = false
+        if (remember === false) history.last = JSON.stringify(snapshot())
+        else history.note()
     }
     readonly property var savedThemes: {
         try { const l = JSON.parse(String(setting("appearance/saved", "[]"))); return Array.isArray(l) ? l : [] } catch (e) { return [] }
@@ -179,12 +236,34 @@ QtObject {
     readonly property var choices: ({
         "appearance/theme": ["dark", "light", "system"], "appearance/darkPreset": presetOrder, "appearance/lightPreset": presetOrder,
         "appearance/density": ["compact", "comfortable", "spacious"], "appearance/motion": ["off", "fast", "normal", "relaxed"],
-        "tabs/style": ["pill", "square", "line"], "layout/tabsSide": ["left", "right"], "layout/address": ["page", "window", "sidebar"]
+        "tabs/style": ["pill", "square", "line"], "layout/tabsSide": ["left", "right"], "layout/address": ["page", "window", "sidebar"],
+        "appearance/loader": ["dots", "spinner", "pulse", "bar", "image"], "appearance/headingFont": ["system", "dot"]
     })
     readonly property var ranges: ({
         "appearance/glassTint": [0, 1], "appearance/lines": [0, 2], "appearance/textScale": [0.8, 1.5], "appearance/roundness": [0, 20],
-        "appearance/inset": [0, 24], "tabs/height": [24, 48], "tabs/gap": [0, 10], "sidebar/depth": [-1, 1], "sidebar/iconSize": [12, 24]
+        "appearance/inset": [0, 24], "tabs/height": [24, 48], "tabs/gap": [0, 10], "sidebar/depth": [-1, 1], "sidebar/iconSize": [12, 24],
+        "appearance/iconWeight": [0.75, 3]
     })
+    readonly property var assetId: /^[0-9a-f]{20}\.(png|jpg|svg|gif|webp)$/
+    // A background from a file, with every field checked and anything unknown dropped.
+    function cleanFill(raw) {
+        let f = raw
+        if (typeof raw === "string") { try { f = JSON.parse(raw) } catch (e) { return null } }
+        if (!f || typeof f !== "object") return null
+        const pick = (v, list, d) => list.indexOf(v) >= 0 ? v : d
+        const num = (v, lo, hi, d) => { const n = Number(v); return isFinite(n) ? Math.min(hi, Math.max(lo, n)) : d }
+        return {
+            type: pick(f.type, ["solid", "gradient", "image", "pattern"], "solid"),
+            colors: Array.isArray(f.colors) ? f.colors.filter(colourOk).slice(0, 3) : [],
+            angle: num(f.angle, 0, 360, 160), image: assetId.test(String(f.image)) ? String(f.image) : "",
+            fit: pick(f.fit, ["fill", "fit", "stretch", "tile", "center"], "fill"),
+            position: pick(f.position, ["center", "top", "bottom", "left", "right"], "center"),
+            dim: num(f.dim, 0, 0.9, 0), blur: num(f.blur, 0, 1, 0),
+            pattern: pick(f.pattern, ["dots", "grid", "lines", "diagonal", "waves", "cross"], "dots"),
+            patternColor: colourOk(f.patternColor) ? f.patternColor : "", patternScale: num(f.patternScale, 0.5, 3, 1),
+            patternOpacity: num(f.patternOpacity, 0, 1, 0.14), opacity: num(f.opacity, 0.2, 1, 1)
+        }
+    }
     function validateTheme(data) {
         if (!data || typeof data !== "object" || data.format !== "f1int-theme")
             return { ok: false, error: qsTr("This isn't an f1int theme file.") }
@@ -194,9 +273,22 @@ QtObject {
         const v = data.values || {}
         for (const k in v) {
             const x = v[k]
-            const custom = /^appearance\/custom\/([a-z]+)\/([a-z0-9]+)$/.exec(k)
+            const custom = /^appearance\/custom\/([a-z]+)\/([a-zA-Z0-9]+)$/.exec(k)
+            const fillKey = /^appearance\/fill\/([a-z]+)\/([a-z]+)$/.exec(k)
             if (custom) {
-                if (presets[custom[1]] && roles.indexOf(custom[2]) >= 0 && /^#[0-9a-fA-F]{6}$/.test(String(x))) values[k] = String(x)
+                if (presets[custom[1]] && roles.indexOf(custom[2]) >= 0 && colourOk(x)) values[k] = String(x)
+            } else if (fillKey) {
+                const f = presets[fillKey[1]] && surfaces.indexOf(fillKey[2]) >= 0 ? cleanFill(x) : null
+                if (f) values[k] = JSON.stringify(f)
+            } else if (k === "appearance/icons") {
+                let m = x
+                if (typeof x === "string") { try { m = JSON.parse(x) } catch (e) { m = null } }
+                const out = {}
+                const names = Browser.assets.iconNames
+                for (const n in (m || {})) if (names.indexOf(n) >= 0 && assetId.test(String(m[n]))) out[n] = String(m[n])
+                values[k] = JSON.stringify(out)
+            } else if (k === "appearance/loaderImage") {
+                if (assetId.test(String(x))) values[k] = String(x)
             } else if (choices[k]) {
                 if (choices[k].indexOf(x) >= 0) values[k] = x
             } else if (ranges[k]) {
@@ -205,18 +297,69 @@ QtObject {
             } else if (k === "sidebar/shortcuts") {
                 if (Array.isArray(x)) values[k] = JSON.stringify(x.filter(s => allShortcuts.indexOf(s) >= 0))
                 else if (typeof x === "string") { try { const l = JSON.parse(x); if (Array.isArray(l)) values[k] = JSON.stringify(l.filter(s => allShortcuts.indexOf(s) >= 0)) } catch (e) {} }
-            } else if (lookKeys.indexOf(k) >= 0 && typeof x === "boolean") {
-                values[k] = x
+            } else if (lookKeys.indexOf(k) >= 0 && (typeof x === "boolean" || x === "true" || x === "false")) {
+                values[k] = x === true || x === "true"   // (the Windows registry hands booleans back as text)
             }   // anything else is dropped
         }
         const text = (t, n) => typeof t === "string" ? t.slice(0, n) : ""
+        // Pictures and icons travel inside the file; each is checked again (Assets.addBase64)
+        // and the theme is pointed at the checked copies.
+        const renamed = {}
+        const files = (data.assets && typeof data.assets === "object") ? data.assets : {}
+        for (const id in files) {
+            if (!assetId.test(id) || typeof files[id] !== "string") continue
+            const kind = String(values["appearance/icons"] || "").indexOf(id) >= 0 ? "icon"
+                       : id === values["appearance/loaderImage"] ? "loader" : "image"
+            const r = Browser.assets.addBase64(files[id], id, kind)
+            if (r.ok) renamed[id] = r.id
+        }
+        for (const k in values) {
+            let text = String(values[k])
+            for (const id of Object.keys(files)) if (text.indexOf(id) >= 0) text = text.split(id).join(renamed[id] || "")
+            if (k === "appearance/loaderImage" && !Browser.assets.url(text).toString()) { delete values[k]; continue }
+            if (typeof values[k] === "string") values[k] = text
+        }
         return { ok: true, theme: { name: data.name.trim(), author: text(data.author, 60), description: text(data.description, 300),
                                     version: text(String(data.version || "1"), 20), values: values } }
     }
-    function themeFile(theme) {   // the portable form of a saved theme
+    function themeFile(theme) {   // the portable form of a saved theme, with its pictures and icons inside
+        const assets = {}
+        const all = JSON.stringify(theme.values)
+        const ids = all.match(/[0-9a-f]{20}\.(png|jpg|svg|gif|webp)/g) || []
+        for (const id of ids) if (!assets[id]) { const b = Browser.assets.base64(id); if (b) assets[id] = b }
         return JSON.stringify({ format: "f1int-theme", version: theme.version || "1", name: theme.name, author: theme.author || "",
-                                description: theme.description || "", values: theme.values }, null, 2)
+                                description: theme.description || "", values: theme.values, assets: assets }, null, 2)
     }
+
+    // ---------- undo ----------
+    // Every change to the look is remembered (the last 25, kept across restarts), so any
+    // experiment can be taken back, and earlier looks restored.
+    readonly property QtObject history: QtObject {
+        id: hist
+        property bool quiet: false
+        property string last: ""
+        readonly property var steps: { try { const l = JSON.parse(String(setting("appearance/undo", "[]"))); return Array.isArray(l) ? l : [] } catch (e) { return [] } }
+        property Timer settle: Timer { interval: 700; onTriggered: hist.note() }
+        function note() {
+            if (quiet) return
+            const now = JSON.stringify(snapshot())
+            if (last !== "" && now !== last) Browser.setSetting("appearance/undo", JSON.stringify(steps.concat([JSON.parse(last)]).slice(-25)))
+            last = now
+        }
+        function undo() {
+            const list = steps.slice()
+            if (list.length === 0) return
+            const prev = list.pop()
+            Browser.setSetting("appearance/undo", JSON.stringify(list))
+            apply(prev, false)
+        }
+    }
+    readonly property bool canUndo: { void Browser.settingsRevision; return history.steps.length > 0 }
+    property Connections watch: Connections {
+        target: Browser
+        function onSettingChanged() { if (!history.quiet) history.settle.restart() }
+    }
+    Component.onCompleted: history.last = JSON.stringify(snapshot())
 
     // Settings search (not saved): rows whose words don't match hide themselves.
     property string settingsFilter: ""

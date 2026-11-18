@@ -9,6 +9,7 @@ QtObject {
     // Panel and dialog titles: dot-matrix, sentence case.
     component Heading: Text {
         color: Theme.fg
+        font.family: Theme.headingFamily
         font.pixelSize: Theme.px(20)
         font.weight: Font.DemiBold
     }
