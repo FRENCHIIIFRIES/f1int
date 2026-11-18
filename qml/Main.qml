@@ -214,6 +214,8 @@ ApplicationWindow {
             if (window.previousTab >= 0) window.lastActive[window.previousTab] = now
             const id = window.tabs.currentId
             window.previousTab = id
+            // Settings covers the whole page area: switching or opening a tab puts the page back.
+            if (window.panel === "settings") window.panel = ""
             if (id < 0) { window.view = null; return }
             const page = window.pageFor(id)
             page.lifecycleState = WebEngineView.LifecycleState.Active   // wake it if it was asleep
@@ -810,6 +812,7 @@ ApplicationWindow {
         activeDownloads: window.activeDownloads
         onMenuRequested: (button) => mainMenu.popup(button, button.width - mainMenu.width, button.height + 4)
         onPanelRequested: (name) => window.showPanel(name)
+        onNavigated: if (window.panel === "settings") window.panel = ""
         onProfileRequested: (button) => {   // (a Popup, not a Menu: placed by hand under the button)
             profileMenu.parent = button
             profileMenu.x = button.width - profileMenu.width

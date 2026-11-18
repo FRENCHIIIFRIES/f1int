@@ -17,6 +17,7 @@ Rectangle {
     signal panelRequested(string name)
     signal keyRequested(Item button)
     signal profileRequested(Item button)
+    signal navigated()                  // you went somewhere from the address bar
 
     function focusAddress() { address.forceActiveFocus(); address.selectAll() }
     function toggleBookmark() {
@@ -35,6 +36,7 @@ Rectangle {
         if (!view || url.toString() === "") return
         view.url = url
         view.forceActiveFocus()   // hand the keyboard back to the page
+        navigated()
     }
 
     implicitHeight: stacked ? 82 : 46
