@@ -1289,6 +1289,10 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+-"; onActivated: window.zoom(-1) }
     Shortcut { sequence: "Ctrl+0"; onActivated: window.zoom(0) }
     Shortcut { sequence: "F11"; onActivated: window.toggleFullScreen() }
+    // Keyboard media keys (while f1int is the active window) drive what's playing.
+    Shortcut { sequences: [Qt.Key_MediaTogglePlayPause, Qt.Key_MediaPlay, Qt.Key_MediaPause]; enabled: window.mediaTabId >= 0; onActivated: window.mediaAction("toggle") }
+    Shortcut { sequence: Qt.Key_MediaNext; enabled: window.mediaTabId >= 0; onActivated: window.mediaAction("next") }
+    Shortcut { sequence: Qt.Key_MediaPrevious; enabled: window.mediaTabId >= 0; onActivated: window.mediaAction("previous") }
     Shortcut { sequence: "F9"; enabled: window.view !== null; onActivated: window.view.reader(!window.view.readerOn) }
     Shortcut { sequences: ["F12", "Ctrl+Shift+I"]; enabled: window.view !== null; onActivated: window.openDevTools() }
 }

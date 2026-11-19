@@ -295,7 +295,7 @@ Rectangle {
             id: nowPlaying
             visible: sidebar.media !== null && !sidebar.narrow
             Layout.fillWidth: true
-            implicitHeight: 54
+            implicitHeight: 56
             radius: Theme.radius
             color: Theme.field
             readonly property var m: sidebar.media || ({})
@@ -308,14 +308,15 @@ Rectangle {
                 color: Theme.accent2
                 visible: nowPlaying.m.playing === true
             }
-            Image {
+            Image {   // album art when the site gives it, else the site's icon
                 id: mediaIcon
-                x: 12
+                x: 10
                 anchors.verticalCenter: parent.verticalCenter
-                width: 16
-                height: 16
-                sourceSize: Qt.size(16, 16)
-                source: nowPlaying.m.icon || ""
+                width: nowPlaying.m.art ? 36 : 16
+                height: width
+                sourceSize: Qt.size(72, 72)
+                fillMode: Image.PreserveAspectCrop
+                source: nowPlaying.m.art || nowPlaying.m.icon || ""
             }
             Column {
                 anchors.left: mediaIcon.right
@@ -352,9 +353,24 @@ Rectangle {
                 anchors.rightMargin: 4
                 anchors.verticalCenter: parent.verticalCenter
                 IconButton {
+                    visible: nowPlaying.m.canSkip === true
+                    implicitWidth: 26
+                    iconName: "back"; iconSize: 14
+                    tip: qsTr("Previous")
+                    onClicked: sidebar.mediaAction("previous")
+                }
+                IconButton {
+                    implicitWidth: 26
                     iconName: nowPlaying.m.playing ? "pause" : "play"
                     tip: nowPlaying.m.playing ? qsTr("Pause") : qsTr("Play")
                     onClicked: sidebar.mediaAction("toggle")
+                }
+                IconButton {
+                    visible: nowPlaying.m.canSkip === true
+                    implicitWidth: 26
+                    iconName: "forward"; iconSize: 14
+                    tip: qsTr("Next")
+                    onClicked: sidebar.mediaAction("next")
                 }
                 IconButton {
                     visible: nowPlaying.m.video === true

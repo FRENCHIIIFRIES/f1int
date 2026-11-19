@@ -7,6 +7,7 @@ Item {
     id: test
     property var win
     property int step: 0
+    property int waits: 0
     function check(ok, what) { console.warn((ok ? "PASS " : "FAIL ") + what) }
     readonly property string loginPage: "<html><body style='background:#fff;font:16px sans-serif;padding:40px'>" +
         "<h2>Log in to Example</h2><form action='/done'><p><input id=email name=email type=email></p>" +
@@ -52,8 +53,9 @@ Item {
             }
             case 6: break
             case 7: break
-            case 8: {   // the icon a page showed is kept for its bookmarks
+            case 8: {   // the icon a page showed is kept for its bookmarks (fetched over the network: wait up to ~10 s)
                 const u = Browser.favicons.icon("https://www.wikipedia.org/")
+                if (u.toString() === "" && ++test.waits < 8) { test.step--; break }
                 test.check(u.toString().indexOf("wikipedia.org.png") > 0, "site icon kept for bookmarks: " + u)
                 break
             }
