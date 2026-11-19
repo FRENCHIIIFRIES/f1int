@@ -42,7 +42,9 @@ Download the installer for your computer from the
 
 The installers are not signed yet, so your computer will warn you the first time:
 
-- **Windows:** "Windows protected your PC" → click **More info** → **Run anyway**.
+- **Windows:** "Windows protected your PC" → click **More info** → **Run anyway**. It installs
+  for you only (no admin needed), adds f1int to the Start menu and desktop, and can be removed
+  from Settings > Apps > Installed apps. Your bookmarks and passwords stay if you remove it.
 - **Mac:** open the `.dmg`, drag f1int to Applications, then **right-click** f1int →
   **Open** → **Open**. If macOS says the app "is damaged", run this once in Terminal:
   `xattr -cr /Applications/f1int.app`

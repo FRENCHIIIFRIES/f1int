@@ -337,6 +337,8 @@ Rectangle {
               steps: qsTr("Open Chrome, paste this into its address bar, then next to Export passwords click Download file.") },
             { label: "Edge", address: "edge://wallet/passwords",
               steps: qsTr("Open Edge, paste this into its address bar, then click ⋯ (More actions) › Export passwords.") },
+            { label: "Arc", address: "chrome://password-manager/settings",
+              steps: qsTr("Open Arc, paste this into its address bar, then next to Export passwords click Download file.") },
             { label: "Firefox", address: "about:logins",
               steps: qsTr("Open Firefox, paste this into its address bar, then click ⋯ (top right) › Export passwords.") },
             { label: qsTr("Other"), address: "",

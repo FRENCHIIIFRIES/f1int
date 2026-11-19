@@ -1,7 +1,7 @@
 ﻿# CMake is the build recipe: it tells the compiler which files make up f1int
 # and which Qt libraries to link against.
 cmake_minimum_required(VERSION 3.21)
-project(f1int VERSION 0.2.3 LANGUAGES CXX)
+project(f1int VERSION 0.2.4 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

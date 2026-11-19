@@ -108,6 +108,27 @@ private slots:
         QCOMPARE(lib.importProfile(profiles[0].toMap()["path"].toString())["bookmarks"].toInt(), 0);   // no duplicates
     }
 
+    void importFromArc()
+    {
+        // Arc: "<root>/User Data/Default" for history, saved tabs in "<root>/StorableSidebar.json".
+        QTemporaryDir root;
+        QDir(root.path()).mkpath("User Data/Default");
+        QFile(root.filePath("User Data/Default/History")).open(QIODevice::WriteOnly);   // (empty: just marks the profile)
+        const QJsonObject tab{ { "title", "" }, { "data", QJsonObject{ { "tab", QJsonObject{ { "savedURL", "https://pinned.test/" }, { "savedTitle", "Pinned" } } } } } };
+        const QJsonObject help{ { "data", QJsonObject{ { "tab", QJsonObject{ { "savedURL", "https://resources.arc.net/x" } } } } } };
+        QFile f(root.filePath("StorableSidebar.json"));
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(QJsonDocument(QJsonObject{ { "sidebar", QJsonObject{ { "containers", QJsonArray{ QJsonObject{ { "items", QJsonArray{ "id", tab, help } } } } } } } }).toJson());
+        f.close();
+        Library lib(QStringLiteral(":memory:"));
+        lib.browserRoots = { { "Arc", root.filePath("User Data") } };
+        lib.firefoxRoot = root.filePath("no-firefox-here");
+        const QVariantList profiles = lib.otherBrowserProfiles();
+        QCOMPARE(profiles.size(), 1);
+        const QVariantMap result = lib.importProfile(profiles[0].toMap()["path"].toString(), { { "history", false } });
+        QCOMPARE(result["bookmarks"].toInt(), 1);   // the saved tab, not Arc's help page
+        QCOMPARE(lib.bookmarks().first().toMap()["title"].toString(), QString("Pinned"));
+    }
     void predictsTheSite()
     {
         Library lib(QStringLiteral(":memory:"));

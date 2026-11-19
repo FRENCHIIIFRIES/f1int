@@ -31,12 +31,14 @@ Library::Library(const QString &dbPath, QObject *parent)
     const QString roaming = QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation).replace("/Local", "/Roaming");
     browserRoots = { { "Chrome", local + "/Google/Chrome/User Data" }, { "Edge", local + "/Microsoft/Edge/User Data" },
                      { "Brave", local + "/BraveSoftware/Brave-Browser/User Data" },
-                     { "Opera", roaming + "/Opera Software/Opera Stable" }, { "Opera GX", roaming + "/Opera Software/Opera GX Stable" } };
+                     { "Opera", roaming + "/Opera Software/Opera Stable" }, { "Opera GX", roaming + "/Opera Software/Opera GX Stable" },
+                     { "Arc", local + "/Packages/TheBrowserCompany.Arc_ttt1ap7aakyb4/LocalCache/Local/Arc/User Data" } };
     firefoxRoot = roaming + "/Mozilla/Firefox";
 #elif defined(Q_OS_MACOS)
     const QString support = QDir::homePath() + "/Library/Application Support";
     browserRoots = { { "Chrome", support + "/Google/Chrome" }, { "Edge", support + "/Microsoft Edge" },
-                     { "Brave", support + "/BraveSoftware/Brave-Browser" }, { "Opera", support + "/com.operasoftware.Opera" } };
+                     { "Brave", support + "/BraveSoftware/Brave-Browser" }, { "Opera", support + "/com.operasoftware.Opera" },
+                     { "Arc", support + "/Arc/User Data" } };
     firefoxRoot = support + "/Firefox";
 #endif
 }
@@ -310,6 +312,22 @@ QVariantMap Library::importProfile(const QString &profilePath, const QVariantMap
         const QJsonObject roots = QJsonDocument::fromJson(file.readAll())["roots"].toObject();
         for (const QJsonValue &root : roots)
             walk(root.toObject());
+    }
+
+    // Arc keeps no Bookmarks file: its saved tabs (all spaces) are in StorableSidebar.json, two folders up.
+    QFile sidebar(profilePath + QStringLiteral("/../../StorableSidebar.json"));
+    if (wantBookmarks && sidebar.open(QIODevice::ReadOnly)) {
+        std::function<void(const QJsonValue &)> walk = [&](const QJsonValue &v) {
+            const QJsonObject tab = v["data"]["tab"].toObject();
+            const QUrl url(tab["savedURL"].toString());
+            if (url.isValid() && !url.host().endsWith(QLatin1String("arc.net")))   // skip Arc's own help pages
+                addBookmark(url, v["title"].toString().isEmpty() ? tab["savedTitle"].toString() : v["title"].toString(),
+                            QDateTime::currentMSecsSinceEpoch());
+            const auto each = [&](const QJsonValue &c) { if (c.isObject() || c.isArray()) walk(c); };
+            if (v.isArray()) for (const QJsonValue &c : v.toArray()) each(c);
+            else for (const QJsonValue &c : v.toObject()) each(c);
+        };
+        walk(QJsonDocument::fromJson(sidebar.readAll())["sidebar"]);
     }
 
     // History: an SQLite database (read from a copy).

@@ -62,7 +62,7 @@ ColumnLayout {
                     Text {
                         Layout.fillWidth: true
                         wrapMode: Text.WordWrap
-                        text: qsTr("f1int can copy bookmarks, history and the search engine from Chrome, Edge, Brave, Opera and Firefox on this computer. It only looks at them when you press the button, reads copies, and never changes the other browser.")
+                        text: qsTr("f1int can copy bookmarks, history and the search engine from Chrome, Edge, Brave, Opera, Arc and Firefox on this computer. It only looks at them when you press the button, reads copies, and never changes the other browser.")
                         color: Theme.dim
                         font.pixelSize: Theme.px(13)
                     }
