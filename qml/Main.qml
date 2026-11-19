@@ -112,7 +112,28 @@ ApplicationWindow {
     }
 
     // ---------- passwords ----------
-    property var savePrompt: null       // { url, username, password, kind } after a login was sent
+    property var savePrompt: null
+    property var notifyPrompt: null      // a site asking to show notifications (answer is remembered)
+    property var toasts: []              // notifications on screen: [{ note, title, message, host }]
+    function showNotification(note) {
+        toasts = toasts.concat([{ note: note, title: note.title, message: note.message, host: host(note.origin) }]).slice(-3)
+        note.show()
+        if (!active) window.alert(0)    // flash the taskbar button
+        toastTimer.restart()
+    }
+    function dismissToast(t, clicked) {
+        toasts = toasts.filter(x => x !== t)
+        if (!clicked) { t.note.close(); return }
+        // Go to a tab of that site, then let the page react to the click.
+        for (const key in pages) if (host(pages[key].url) === t.host) { tabs.currentId = Number(key); break }
+        window.raise(); window.requestActivate()
+        t.note.click()
+    }
+    Timer { id: toastTimer; interval: 8000; onTriggered: { for (const t of window.toasts) t.note.close(); window.toasts = [] } }
+    Connections {
+        target: window.profile
+        function onPresentNotification(note) { window.showNotification(note) }
+    }       // { url, username, password, kind } after a login was sent
     property var suggestion: null       // { page, password } for a sign-up box
     property var pendingAction: null    // runs once the vault is unlocked
     function host(url) { return url.toString().replace(/^https?:\/\/(www\.)?/, "").split("/")[0] }
@@ -154,6 +175,20 @@ ApplicationWindow {
             const login = Browser.passwords.loginsFor(view.url).find(l => l.id === id)
             if (login) view.fillLogin(login.username, Browser.passwords.password(id))
         })
+    }
+    // Your saved accounts for this site, in a list under the login box you clicked.
+    function showAccounts(page, rect) {
+        if (incognito || !rect || page !== view || !setting("passwords/autofill", true)) return
+        const v = Browser.passwords
+        if (v.state === "none") return
+        const logins = v.state === "unlocked" ? v.loginsFor(page.url) : []
+        if (v.state === "unlocked" && logins.length === 0) return
+        const z = page.zoomFactor
+        accountPicker.logins = logins
+        accountPicker.locked = v.state !== "unlocked"
+        accountPicker.x = Math.min(Math.max(8, rect.x * z), pageArea.width - accountPicker.width - 8)
+        accountPicker.y = Math.max(8, Math.min((rect.y + rect.h) * z + 4, pageArea.height - 220))
+        accountPicker.open()
     }
     function suggestPassword(page) {
         if (setting("passwords/generator", true)) suggestion = { page: page, password: Browser.passwords.generate(20) }
@@ -476,6 +511,7 @@ ApplicationWindow {
     // For UI test scripts: reach the menus and panels by name.
     property alias sidebarItem: sidebar
     property alias pageAreaItem: pageArea
+    property alias accountPickerItem: accountPicker
     property alias tabMenuItem: tabMenu
     property alias groupPopupItem: groupPopup
     property alias mainMenuItem: mainMenu
@@ -491,10 +527,14 @@ ApplicationWindow {
             onLinkHovered: (url) => window.hoveredLink = url.toString()
             onLoginSubmitted: (username, password) => window.offerSave(webPage, username, password)
             onPageLoaded: window.autofill(webPage)
-            onLoginBoxFocused: window.autofill(webPage)
+            onLoginBoxFocused: (rect) => { window.autofill(webPage); window.showAccounts(webPage, rect) }
             onNewPasswordFocused: window.suggestPassword(webPage)
             onRecentlyAudibleChanged: if (recentlyAudible) { window.mediaTabId = tabId; window.refreshMedia() }
             onReaderMissing: window.flash(qsTr("No article found on this page"))
+            onNotificationsAsked: (permission) => {
+                if (!window.setting("privacy/notifications", true)) permission.deny()
+                else window.notifyPrompt = permission
+            }
             onFullScreenRequested: (request) => {
                 request.accept()
                 request.toggleOn ? window.showFullScreen() : window.showNormal()
@@ -709,6 +749,87 @@ ApplicationWindow {
                                        : window.panel === "passwords" ? passwordsPanel : libraryPanel
                     }
 
+                    // The saved accounts list under a login box (window.showAccounts).
+                    Popup {
+                        id: accountPicker
+                        property var logins: []
+                        property bool locked: false
+                        width: 300
+                        padding: 6
+                        focus: false   // typing keeps going into the page
+                        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+                        background: Rectangle { color: Theme.surface; radius: Theme.cardRadius; border.width: 1; border.color: Theme.line }
+                        Connections { target: window.view; function onUrlChanged() { accountPicker.close() } }
+                        contentItem: Column {
+                            spacing: 2
+                            Text {
+                                x: 8
+                                text: accountPicker.locked ? qsTr("Saved passwords")
+                                      : window.view && window.host(window.view.url) !== "" ? qsTr("Sign in to %1 as").arg(window.host(window.view.url)) : qsTr("Sign in as")
+                                color: Theme.dim
+                                font.pixelSize: Theme.px(11)
+                                topPadding: 4; bottomPadding: 4
+                            }
+                            Repeater {
+                                model: accountPicker.logins
+                                Rectangle {
+                                    id: account
+                                    required property var modelData
+                                    width: accountPicker.availableWidth
+                                    height: 46
+                                    radius: Theme.radius
+                                    color: accountHover.hovered ? Theme.hover : "transparent"
+                                    HoverHandler { id: accountHover; cursorShape: Qt.PointingHandCursor }
+                                    Accessible.role: Accessible.Button
+                                    Accessible.name: qsTr("Fill in as %1").arg(account.modelData.username || qsTr("(no username)"))
+                                    Ui.Avatar { x: 8; anchors.verticalCenter: parent.verticalCenter; width: 28; height: 28; name: account.modelData.username || "?" }
+                                    Column {
+                                        x: 46; anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width - 54
+                                        spacing: 4
+                                        Text { width: parent.width; text: account.modelData.username || qsTr("(no username)"); color: Theme.fg; font.pixelSize: Theme.px(13); elide: Text.ElideRight }
+                                        Ui.Dots { count: 10; color: Theme.dim }
+                                    }
+                                    MouseArea { anchors.fill: parent; onClicked: { window.fillAs(account.modelData.id); accountPicker.close() } }
+                                }
+                            }
+                            Rectangle {   // locked: unlock first, then fill (or show the list)
+                                visible: accountPicker.locked
+                                width: accountPicker.availableWidth
+                                height: 40
+                                radius: Theme.radius
+                                color: unlockHover.hovered ? Theme.hover : "transparent"
+                                HoverHandler { id: unlockHover; cursorShape: Qt.PointingHandCursor }
+                                Accessible.role: Accessible.Button
+                                Accessible.name: qsTr("Unlock saved passwords")
+                                Icon { x: 14; anchors.verticalCenter: parent.verticalCenter; glyph: "key"; color: Theme.accent }
+                                Text { x: 46; anchors.verticalCenter: parent.verticalCenter; text: qsTr("Unlock to fill a saved password"); color: Theme.fg; font.pixelSize: Theme.px(13) }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: {
+                                        const page = window.view
+                                        accountPicker.close()
+                                        window.withUnlocked(() => {
+                                            const logins = Browser.passwords.loginsFor(page.url)
+                                            if (logins.length === 1) page.fillLogin(logins[0].username, Browser.passwords.password(logins[0].id))
+                                            else if (logins.length > 1) { accountPicker.logins = logins; accountPicker.locked = false; accountPicker.open() }
+                                        })
+                                    }
+                                }
+                            }
+                            Rectangle { width: accountPicker.availableWidth; height: 1; color: Theme.line }
+                            Text {
+                                x: 8
+                                text: qsTr("Manage passwords")
+                                color: Theme.accent
+                                font.pixelSize: Theme.px(12)
+                                topPadding: 6; bottomPadding: 6
+                                HoverHandler { cursorShape: Qt.PointingHandCursor }
+                                MouseArea { anchors.fill: parent; onClicked: { accountPicker.close(); window.panel = "passwords" } }
+                            }
+                        }
+                    }
+
                     // "Save password?" and "Use a strong password?" cards, top right under the toolbar.
                     Column {
                         z: 7
@@ -718,6 +839,45 @@ ApplicationWindow {
                         spacing: 8
                         width: 330
 
+                        PromptCard {
+                            visible: window.notifyPrompt !== null
+                            title: window.notifyPrompt ? qsTr("%1 wants to show notifications").arg(window.host(window.notifyPrompt.origin)) : ""
+                            detail: qsTr("They appear in f1int while it's open")
+                            Ui.Pill { text: qsTr("Block"); onClicked: { window.notifyPrompt.deny(); window.notifyPrompt = null } }
+                            Ui.Pill { primary: true; text: qsTr("Allow"); onClicked: { window.notifyPrompt.grant(); window.notifyPrompt = null } }
+                        }
+                        Repeater {   // notifications from sites
+                            model: window.toasts
+                            Rectangle {
+                                id: toast
+                                required property var modelData
+                                width: 330
+                                height: toastText.implicitHeight + 24
+                                radius: Theme.cardRadius
+                                color: Theme.surface
+                                border.width: 1
+                                border.color: Theme.line
+                                HoverHandler { id: toastHover; cursorShape: Qt.PointingHandCursor; onHoveredChanged: if (hovered) toastTimer.stop(); else toastTimer.restart() }
+                                Accessible.role: Accessible.AlertMessage
+                                Accessible.name: toast.modelData.title + ". " + toast.modelData.message
+                                Rectangle { x: 0; width: 3; height: parent.height - 20; y: 10; radius: 1.5; color: Theme.accent2 }
+                                Column {
+                                    id: toastText
+                                    x: 14; y: 12
+                                    width: parent.width - 52
+                                    spacing: 3
+                                    Text { text: toast.modelData.host; color: Theme.dim; font.pixelSize: Theme.px(11) }
+                                    Text { width: parent.width; text: toast.modelData.title; color: Theme.fg; font.pixelSize: Theme.px(13); font.weight: Font.DemiBold; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
+                                    Text { width: parent.width; visible: text !== ""; text: toast.modelData.message; color: Theme.fg; font.pixelSize: Theme.px(12); wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight }
+                                }
+                                MouseArea { anchors.fill: parent; onClicked: window.dismissToast(toast.modelData, true) }
+                                IconButton {
+                                    anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 6
+                                    iconName: "close"; iconSize: 12; iconColor: Theme.dim; tip: qsTr("Dismiss")
+                                    onClicked: window.dismissToast(toast.modelData, false)
+                                }
+                            }
+                        }
                         PromptCard {
                             visible: window.savePrompt !== null
                             title: window.savePrompt === null ? "" : window.savePrompt.kind === "update"

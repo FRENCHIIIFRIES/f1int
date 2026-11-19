@@ -45,23 +45,28 @@ ColumnLayout {
         Theme.storeThemes(Theme.savedThemes.map(t => t.id === id ? Object.assign({}, t, change) : t))
     }
 
+    property alias colourPicker: colourPopup
+
     // ---------- the live preview: a small f1int window ----------
     component MiniWindow: Rectangle {
         id: mini
         property var c: ({})
         property bool tabsRight: Theme.tabsOnRight
+        property bool live: false     // the current look: show its backgrounds too
         radius: 10
         color: c.frame || "#000"
         border.width: 1
         border.color: Theme.line
         clip: true
+        Fill { anchors.fill: parent; visible: mini.live; spec: Theme.windowFill; base: mini.c.frame || "#000" }
         Rectangle {   // the tab column
             id: miniSide
             x: mini.tabsRight ? parent.width - width : 0
             width: parent.width * 0.26
             height: parent.height
             radius: 10
-            color: mini.c.sidebar || "#000"
+            color: mini.live && Theme.sidebarFill.type !== "solid" ? "transparent" : mini.c.sidebar || "#000"
+            Fill { anchors.fill: parent; visible: mini.live && Theme.sidebarFill.type !== "solid"; spec: Theme.sidebarFill; base: mini.c.sidebar || "#000" }
             Column {
                 x: 8; y: 10; spacing: 5
                 Rectangle { width: 10; height: 10; radius: 2; color: Theme.dark ? "#e8434f" : "#a61b2a" }
@@ -71,7 +76,7 @@ ColumnLayout {
                     Rectangle {
                         required property int index
                         width: miniSide.width - 16; height: 12; radius: 4
-                        color: index === 1 ? mini.c.tab : "transparent"
+                        color: index === 1 ? mini.c.tab : mini.c.tabIdle || "transparent"
                         Rectangle { x: 5; anchors.verticalCenter: parent.verticalCenter; width: parent.width * (0.7 - parent.index * 0.08); height: 3; radius: 1.5; color: mini.c.dim || "#888" }
                     }
                 }
@@ -81,7 +86,8 @@ ColumnLayout {
             x: mini.tabsRight ? 0 : miniSide.width
             width: parent.width - miniSide.width
             height: 26
-            color: mini.c.toolbar || "#000"
+            color: mini.live && Theme.toolbarFill.type !== "solid" ? "transparent" : mini.c.toolbar || "#000"
+            Fill { anchors.fill: parent; visible: mini.live && Theme.toolbarFill.type !== "solid"; spec: Theme.toolbarFill; base: mini.c.toolbar || "#000" }
             Rectangle { x: 10; y: 6; width: parent.width - 20; height: 14; radius: 7; color: mini.c.field || "#000"
                 Rectangle { x: 6; anchors.verticalCenter: parent.verticalCenter; width: 5; height: 5; radius: 2.5; color: mini.c.accent2 || "#fc0" } }
         }
@@ -153,8 +159,33 @@ ColumnLayout {
         }
     }
 
+    // ---------- categories: simple first, the deep stuff a click away ----------
+    property string cat: "library"
+    readonly property bool searching: Theme.settingsFilter !== ""
+    RowLayout {
+        Layout.fillWidth: true
+        visible: !studio.searching
+        spacing: 10
+        Ui.Segmented {
+            options: [{ label: qsTr("Themes"), value: "library" }, { label: qsTr("Colours"), value: "colours" },
+                      { label: qsTr("Backgrounds"), value: "backgrounds" }, { label: qsTr("Shape and type"), value: "shape" },
+                      { label: qsTr("Icons and motion"), value: "icons" }]
+            value: studio.cat
+            onPicked: (v) => studio.cat = v
+        }
+        Item { Layout.fillWidth: true }
+        Ui.Pill {
+            text: qsTr("Undo")
+            enabled: Theme.canUndo
+            onClicked: Theme.history.undo()
+            ToolTip.visible: hovered
+            ToolTip.text: qsTr("Take back the last change to the look (the last 25 are kept)")
+        }
+    }
+
     // ---------- library ----------
     Ui.Section {
+        visible: studio.searching || studio.cat === "library"
         title: qsTr("Theme library")
         Item {
             Layout.fillWidth: true
@@ -170,6 +201,7 @@ ColumnLayout {
                         Layout.preferredWidth: 300
                         Layout.preferredHeight: 180
                         c: studio.shown
+                        live: studio.previewing === null
                         Behavior on color { ColorAnimation { duration: Theme.anim * 2 } }
                     }
                     ColumnLayout {
@@ -207,7 +239,14 @@ ColumnLayout {
                         }
                     }
                 }
-                Text { text: qsTr("Built in"); color: Theme.dim; font.pixelSize: Theme.px(12) }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Text { text: qsTr("Templates: pick one, change anything, save it as yours"); color: Theme.dim; font.pixelSize: Theme.px(12); Layout.fillWidth: true }
+                    Ui.Pill {
+                        text: qsTr("Start from scratch")
+                        onClicked: { studio.applyPreset("blank"); studio.cat = "colours" }
+                    }
+                }
                 Flow {
                     Layout.fillWidth: true
                     spacing: 10
@@ -224,7 +263,7 @@ ColumnLayout {
                         }
                     }
                 }
-                Text { text: qsTr("Yours"); color: Theme.dim; font.pixelSize: Theme.px(12) }
+                Text { text: qsTr("Your themes and looks (each keeps its colours, backgrounds, icons, tab and sidebar setup)"); color: Theme.dim; font.pixelSize: Theme.px(12) }
                 Text {
                     visible: Theme.savedThemes.length === 0
                     text: qsTr("Save your look below to keep it as a theme, or import a .f1theme file.")
@@ -328,6 +367,7 @@ ColumnLayout {
 
     // ---------- colour editor ----------
     Ui.Section {
+        visible: studio.searching || studio.cat === "colours"
         title: qsTr("Colours of %1").arg(Theme.base.name)
         Repeater {
             model: [
@@ -341,7 +381,11 @@ ColumnLayout {
                 { role: "fg", label: qsTr("Text and icons") },
                 { role: "dim", label: qsTr("Secondary text") },
                 { role: "accent", label: qsTr("Accent"), hint: qsTr("Buttons, switches, focus, progress") },
-                { role: "accent2", label: qsTr("Second accent"), hint: qsTr("Stars, sound, small highlights") }]
+                { role: "accent2", label: qsTr("Second accent"), hint: qsTr("Stars, sound, small highlights") },
+                { role: "tabIdle", label: qsTr("Other tabs"), hint: qsTr("Tabs that aren't open (see-through by default)") },
+                { role: "icon", label: qsTr("Icons"), hint: qsTr("Empty = the text colour") },
+                { role: "border", label: qsTr("Borders and separators"), hint: qsTr("Empty = from the text colour and the Borders slider") },
+                { role: "hover", label: qsTr("Hover highlight"), hint: qsTr("Empty = a light wash of the text colour") }]
             Ui.SettingRow {
                 id: colourRow
                 required property var modelData
@@ -362,18 +406,21 @@ ColumnLayout {
                         id: hex
                         width: 92
                         font.family: Theme.numberFont
-                        text: { void Browser.settingsRevision; return Theme.role(colourRow.modelData.role).toUpperCase() }
-                        validator: RegularExpressionValidator { regularExpression: /#?[0-9a-fA-F]{0,6}/ }
+                        text: { void Browser.settingsRevision; return String(Theme.role(colourRow.modelData.role)).toUpperCase() }
+                        placeholderText: qsTr("auto")
+                        // 6 digits, or 8 for see-through colours (#AARRGGBB, the first two are the opacity).
+                        validator: RegularExpressionValidator { regularExpression: /#?[0-9a-fA-F]{0,8}/ }
                         onEditingFinished: {
                             const v = (text.startsWith("#") ? text : "#" + text).toLowerCase()
-                            if (/^#[0-9a-f]{6}$/.test(v)) studio.set("appearance/custom/" + Theme.preset + "/" + colourRow.modelData.role, v)
+                            if (Theme.colourOk(v)) studio.set("appearance/custom/" + Theme.preset + "/" + colourRow.modelData.role, v)
                         }
                         Accessible.name: colourRow.modelData.label + " " + qsTr("hex code")
                     }
                     Rectangle {
                         width: 32; height: 32; radius: Theme.radius
-                        color: hex.text.length === 7 ? hex.text : "transparent"
+                        color: Theme.colourOk(hex.text) ? hex.text : "transparent"
                         border.width: 1; border.color: Theme.line
+                        PatternCanvas { anchors.fill: parent; anchors.margins: 2; z: -1; kind: "grid"; size: 0.4; opacity: 0.3 }   // shows see-through
                         HoverHandler { cursorShape: Qt.PointingHandCursor }
                         Accessible.role: Accessible.Button
                         Accessible.name: qsTr("Pick a colour for %1").arg(colourRow.modelData.label)
@@ -397,7 +444,18 @@ ColumnLayout {
     Popup {
         id: colourPopup
         property string role: "accent"
-        function openFor(r) { role = r; wheel.color = Theme.role(r); open() }
+        property var done: null           // set instead of `role` to use the picked colour elsewhere
+        property real alpha: 1
+        function openFor(r) {
+            role = r; done = null
+            const c = Theme.colourOk(Theme.role(r)) ? Qt.color(Theme.role(r)) : Theme.fg
+            wheel.color = Qt.rgba(c.r, c.g, c.b, 1); alpha = c.a; open()
+        }
+        function pick(colour, callback) {
+            done = callback
+            const c = Theme.colourOk(colour) ? Qt.color(colour) : Theme.accent
+            wheel.color = Qt.rgba(c.r, c.g, c.b, 1); alpha = c.a; open()
+        }
         anchors.centerIn: Overlay.overlay
         width: 280
         padding: 18
@@ -408,7 +466,18 @@ ColumnLayout {
             ColorWheel {
                 id: wheel
                 width: parent.width
-                onPicked: (c) => { studio.set("appearance/custom/" + Theme.preset + "/" + colourPopup.role, c.toString()); colourPopup.close() }
+                onPicked: (c) => {
+                    const value = Qt.rgba(c.r, c.g, c.b, colourPopup.alpha).toString()   // "#aarrggbb" when see-through
+                    if (colourPopup.done) colourPopup.done(value)
+                    else studio.set("appearance/custom/" + Theme.preset + "/" + colourPopup.role, value)
+                    colourPopup.close()
+                }
+            }
+            Row {   // opacity: 0 = see-through ... 100 = solid
+                spacing: 10
+                Text { text: qsTr("Opacity"); color: Theme.dim; font.pixelSize: Theme.px(12); anchors.verticalCenter: parent.verticalCenter }
+                Ui.Slide { width: 150; from: 0; to: 1; value: colourPopup.alpha; onMoved: colourPopup.alpha = Math.round(value * 100) / 100 }
+                Text { text: Math.round(colourPopup.alpha * 100) + "%"; color: Theme.fg; font.family: Theme.numberFont; font.pixelSize: Theme.px(12); anchors.verticalCenter: parent.verticalCenter }
             }
             Row {   // RGB, for exact values
                 spacing: 6
@@ -434,7 +503,10 @@ ColumnLayout {
     }
 
     // ---------- shape and type ----------
+    BackgroundEditor { visible: studio.searching || studio.cat === "backgrounds"; Layout.fillWidth: true; picker: studio.colourPicker }
+
     Ui.Section {
+        visible: studio.searching || studio.cat === "shape"
         title: qsTr("Shape and type")
         Ui.SettingRow {
             label: qsTr("Corners")
@@ -485,6 +557,15 @@ ColumnLayout {
             }
         }
         Ui.SettingRow {
+            label: qsTr("Headings")
+            hint: qsTr("Page and section titles")
+            Ui.Segmented {
+                options: [{ label: qsTr("Plain"), value: "system" }, { label: qsTr("Dot-matrix"), value: "dot" }]
+                value: Theme.headingStyle
+                onPicked: (v) => studio.set("appearance/headingFont", v)
+            }
+        }
+        Ui.SettingRow {
             label: qsTr("Dot-matrix numbers")
             hint: qsTr("Memory, counts and clock in f1int's dotted display face")
             last: true
@@ -493,7 +574,10 @@ ColumnLayout {
     }
 
     // ---------- effects ----------
+    IconsEditor { visible: studio.searching || studio.cat === "icons"; Layout.fillWidth: true }
+
     Ui.Section {
+        visible: studio.searching || studio.cat === "icons"
         title: qsTr("Effects")
         Ui.SettingRow {
             label: qsTr("Animations")
@@ -523,10 +607,11 @@ ColumnLayout {
         }
     }
     Ui.Pill {
+        visible: !studio.searching
         text: qsTr("Reset all appearance settings")
         onClicked: {
             for (const k of Theme.lookKeys) Browser.resetSetting(k)
-            for (const p of Theme.presetOrder) for (const r of Theme.roles) Browser.resetSetting("appearance/custom/" + p + "/" + r)
+            for (const k of Theme.presetKeys()) Browser.resetSetting(k)
         }
     }
 }

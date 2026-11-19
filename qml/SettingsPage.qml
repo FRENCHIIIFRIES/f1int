@@ -494,6 +494,11 @@ Rectangle {
                     Ui.Toggle { checked: page.get("privacy/adblock", true); onToggled: page.set("privacy/adblock", checked) }
                 }
                 Ui.SettingRow {
+                    label: qsTr("Sites can ask to show notifications")
+                    hint: qsTr("Off: every request is turned down without asking")
+                    Ui.Toggle { checked: page.get("privacy/notifications", true); onToggled: page.set("privacy/notifications", checked) }
+                }
+                Ui.SettingRow {
                     label: qsTr("Clear browsing data on exit")
                     hint: qsTr("History, cookies, cache and open tabs. Bookmarks are kept.")
                     Ui.Toggle { checked: page.get("privacy/clearOnExit", false); onToggled: page.set("privacy/clearOnExit", checked) }

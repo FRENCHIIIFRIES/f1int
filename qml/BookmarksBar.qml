@@ -33,7 +33,7 @@ Item {
                     width: 14
                     height: 14
                     sourceSize: Qt.size(16, 16)
-                    source: "image://favicon/" + chip.modelData.url
+                    source: { void Browser.favicons.revision; return Browser.favicons.icon(chip.modelData.url) }
                     visible: status === Image.Ready && implicitWidth > 0
                 }
                 Icon { x: 8; anchors.verticalCenter: parent.verticalCenter; glyph: "globe"; sourceSize: Qt.size(14, 14); color: Theme.dim; visible: !fav.visible }

@@ -67,9 +67,19 @@ Rectangle {
                 radius: 8
                 color: rowHover.hovered ? Theme.hover : "transparent"
                 HoverHandler { id: rowHover }
+                Image {   // the site's own icon (Browser.favicons), else a plain one
+                    id: siteIcon
+                    x: 10
+                    width: 16; height: 16
+                    anchors.verticalCenter: parent.verticalCenter
+                    sourceSize: Qt.size(32, 32)
+                    source: { void Browser.favicons.revision; return Browser.favicons.icon(modelData.url) }
+                    visible: status === Image.Ready
+                }
                 Icon {
                     x: 10
                     anchors.verticalCenter: parent.verticalCenter
+                    visible: !siteIcon.visible
                     glyph: panel.page === "bookmarks" ? "star" : "history"
                     color: Theme.dim
                 }

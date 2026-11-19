@@ -136,7 +136,8 @@ QString Account::errorText(int status, const QJsonValue &body) const
     if (code == QLatin1String("invalid_credentials") || o["error"].toString() == QLatin1String("invalid_grant"))
         return tr("Wrong email or password.");
     if (code == QLatin1String("email_not_confirmed"))
-        return tr("Confirm your email first: open the link we sent you.");
+        return tr("Confirm your email first: open the link we sent you (from noreply@mail.app.supabase.io; check spam). "
+                  "Or paste the link here.");
     if (code == QLatin1String("over_email_send_rate_limit") || status == 429)
         return tr("Too many tries just now. Wait a little and try again.");
     if (code == QLatin1String("user_already_exists") || code == QLatin1String("email_exists"))
@@ -229,7 +230,7 @@ void Account::signUp(const QString &email, const QString &password)
         m_browser->setSetting(QStringLiteral("account/email"), m_email);
         startLinkListener();
         setState(QStringLiteral("confirmEmail"));
-        setMessage(tr("We sent a link to %1. Open it to finish creating your account.").arg(m_email));
+        setMessage(tr("We sent a link to %1 from noreply@mail.app.supabase.io. Open it on this computer to finish (check spam if it isn't there in a minute).").arg(m_email));
     });
 }
 

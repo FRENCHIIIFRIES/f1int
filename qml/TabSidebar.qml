@@ -206,11 +206,41 @@ Rectangle {
             moveDisplaced: Transition { NumberAnimation { properties: "x,y"; duration: Theme.anim } }
         }
 
-        // ---- New tab ----
-        Rectangle {
-            visible: Theme.showNewTabRow
+
+        // ---- Tabs, with group headers ----
+        ListView {
+            id: list
             Layout.fillWidth: true
-            Layout.preferredHeight: Theme.rowHeight
+            Layout.fillHeight: true
+            clip: true
+            spacing: Theme.tabGap
+            boundsBehavior: Flickable.StopAtBounds
+            model: TabFilter { sourceModel: sidebar.tabs; pinned: false; text: search.text }
+            section.property: "groupKey"
+            section.delegate: GroupHeader {
+                tabs: sidebar.tabs
+                group: sidebar.groupInfo(Number(section))
+                narrow: sidebar.narrow
+                onMenuRequested: sidebar.groupMenuRequested(group.id)
+            }
+            delegate: TabRow {
+                tabs: sidebar.tabs
+                group: sidebar.groupInfo(groupId)
+                narrow: sidebar.narrow
+                onMenuRequested: sidebar.tabMenuRequested(tabId)
+                onMuteToggled: sidebar.muteToggled(tabId)
+            }
+            moveDisplaced: Transition { NumberAnimation { properties: "y"; duration: Theme.anim } }
+            displaced: Transition { NumberAnimation { properties: "y"; duration: Theme.anim } }
+            // New tab: right under the last tab (scrolls with them).
+            footer: Item {
+                width: list.width
+                height: Theme.showNewTabRow ? Theme.rowHeight + Theme.tabGap : 0
+            Rectangle {
+            visible: Theme.showNewTabRow
+            y: Theme.tabGap
+            width: list.width
+            height: Theme.rowHeight
             radius: Theme.tabRadius
             color: newTabMouse.pressed ? Theme.press : newTabHover.hovered && Theme.hoverEffects ? Theme.hover : "transparent"
             Behavior on color { ColorAnimation { duration: Theme.anim } }
@@ -248,32 +278,7 @@ Rectangle {
             }
             MouseArea { id: newTabMouse; anchors.fill: parent; onClicked: sidebar.newTabRequested() }
         }
-
-        // ---- Tabs, with group headers ----
-        ListView {
-            id: list
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-            spacing: Theme.tabGap
-            boundsBehavior: Flickable.StopAtBounds
-            model: TabFilter { sourceModel: sidebar.tabs; pinned: false; text: search.text }
-            section.property: "groupKey"
-            section.delegate: GroupHeader {
-                tabs: sidebar.tabs
-                group: sidebar.groupInfo(Number(section))
-                narrow: sidebar.narrow
-                onMenuRequested: sidebar.groupMenuRequested(group.id)
             }
-            delegate: TabRow {
-                tabs: sidebar.tabs
-                group: sidebar.groupInfo(groupId)
-                narrow: sidebar.narrow
-                onMenuRequested: sidebar.tabMenuRequested(tabId)
-                onMuteToggled: sidebar.muteToggled(tabId)
-            }
-            moveDisplaced: Transition { NumberAnimation { properties: "y"; duration: Theme.anim } }
-            displaced: Transition { NumberAnimation { properties: "y"; duration: Theme.anim } }
             ScrollBar.vertical: ScrollBar { width: 4; policy: ScrollBar.AsNeeded }
 
             Text {   // nothing matches the search

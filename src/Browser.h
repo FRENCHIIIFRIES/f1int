@@ -17,6 +17,7 @@
 #include "Account.h"
 #include "Assets.h"
 #include "Updater.h"
+#include "Favicons.h"
 #include "TabModel.h"
 #include <QQuickWindow>
 
@@ -45,6 +46,7 @@ class Browser : public QObject
     Q_PROPERTY(Account *account READ account CONSTANT)
     Q_PROPERTY(Assets *assets READ assets CONSTANT)
     Q_PROPERTY(Updater *updater READ updater CONSTANT)
+    Q_PROPERTY(Favicons *favicons READ favicons CONSTANT)
 
 public:
     explicit Browser(QObject *parent = nullptr);
@@ -64,6 +66,7 @@ public:
     Account *account() const { return m_account; }
     Assets *assets() const { return m_assets; }
     Updater *updater() const { return m_updater; }
+    Favicons *favicons() const { return m_favicons; }
     static inline QString startProfile;   // set by main() from --profile
     QString passwordMessagePrefix() const { return QStringLiteral("f1int:") + m_nonce + QLatin1Char(':'); }
     QString passwordScript() const;
@@ -139,6 +142,7 @@ private:
     Account *m_account = nullptr;
     Assets *m_assets = nullptr;
     Updater *m_updater = nullptr;
+    Favicons *m_favicons = nullptr;
     QList<QPointer<TabModel>> m_windows;       // normal windows, in opening order
     QList<QJsonObject> m_pendingRestore;       // saved windows not yet reopened
     bool m_startUrlsTaken = false;

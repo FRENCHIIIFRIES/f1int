@@ -12,7 +12,7 @@ Item {
     signal menuRequested()
 
     width: ListView.view ? ListView.view.width : 0
-    height: group ? 28 : 0
+    height: group ? 32 : 0
     // ListView sets "visible" on section headers itself, so hide empty ones with opacity.
     opacity: group ? 1 : 0
     enabled: group !== null
@@ -25,9 +25,9 @@ Item {
 
         Rectangle {
             id: dot
-            x: 16
-            width: 8
-            height: 8
+            x: 12
+            width: 12
+            height: 12
             radius: 4
             anchors.verticalCenter: parent.verticalCenter
             color: header.group ? header.group.color : "transparent"
@@ -35,13 +35,13 @@ Item {
         Text {
             id: name
             anchors.left: dot.right
-            anchors.leftMargin: 12
+            anchors.leftMargin: 10
             anchors.verticalCenter: parent.verticalCenter
             visible: !header.narrow
             text: header.group ? header.group.name : ""
             color: Theme.fg
-            font.pixelSize: Theme.px(12)
-            font.weight: Font.DemiBold
+            font.pixelSize: Theme.px(13)
+            font.weight: Font.Black
         }
         Text {
             anchors.left: name.right

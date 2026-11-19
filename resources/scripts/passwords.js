@@ -62,11 +62,20 @@
     }, true);
 
     // ---- clicking into a password box: offer a strong one (sign-up) or fill a saved one (login) ----
+    // Where the box is on screen, so f1int can show your saved accounts right under it.
+    const rect = el => { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; };
+    // A username box of a login form: a text/email box with a password box after it, or one
+    // that says it's for a username.
+    const isLoginUsername = el => textLike(el) && (
+        passwordFields(el.form || document).some(p => !isNewPassword(p) && (el.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING))
+        || /username|email/i.test(el.autocomplete || "") && !passwordFields(el.form || document).some(isNewPassword));
     document.addEventListener("focusin", e => {
         const t = e.target;
-        if (t.tagName !== "INPUT" || t.type !== "password") return;
-        if (isNewPassword(t)) { if (!t.value) send("newpassword", {}); }
-        else send("passwordfocus", {});   // a login box (maybe added after the page loaded): f1int can fill it
+        if (t.tagName !== "INPUT") return;
+        if (t.type === "password") {
+            if (isNewPassword(t)) { if (!t.value) send("newpassword", {}); }
+            else send("passwordfocus", { rect: rect(t) });   // a login box (maybe added after the page loaded)
+        } else if (isLoginUsername(t)) send("passwordfocus", { rect: rect(t) });
     }, true);
 
     // ---- called by f1int ----

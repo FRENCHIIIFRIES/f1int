@@ -13,7 +13,7 @@ WebEngineView {
     property string pendingUsername: ""    // email typed on the first page of a two-step login
     signal openRequested(var request)      // a link wants a new tab or window
     signal loginSubmitted(string username, string password)
-    signal loginBoxFocused()               // could fill a saved login now
+    signal loginBoxFocused(var rect)       // a login box got focus: { x, y, w, h } in page pixels (or null)
     signal newPasswordFocused()            // sign-up box: could suggest a strong password
     signal pageLoaded()
     property bool poppedOut: false         // shown in the small pop-out video window
@@ -60,10 +60,18 @@ WebEngineView {
 
     onTitleChanged: tabs.update(tabId, { title: title })
     onUrlChanged: { tabs.update(tabId, { url: url }); hasLoginForm = false; readerOn = false }
-    onIconChanged: tabs.update(tabId, { icon: icon })
+    onIconChanged: {
+        tabs.update(tabId, { icon: icon })
+        if (!incognito && icon.toString() !== "") Browser.favicons.pageIcon(url, icon)   // kept for bookmarks
+    }
     onRecentlyAudibleChanged: tabs.update(tabId, { audible: recentlyAudible })
     onLifecycleStateChanged: tabs.update(tabId, { asleep: lifecycleState !== WebEngineView.LifecycleState.Active })
     onNewWindowRequested: (request) => openRequested(request)
+    signal notificationsAsked(var permission)   // a site wants to show notifications
+    onPermissionRequested: (permission) => {
+        if (permission.permissionType === WebEnginePermission.PermissionType.Notifications) notificationsAsked(permission)
+        else permission.deny()   // camera, microphone, location...: not supported yet
+    }
     onLoadingChanged: (info) => {
         tabs.update(tabId, { loading: loading })
         if (!loading && info.status === WebEngineLoadingInfo.LoadSucceededStatus) {
@@ -83,7 +91,7 @@ WebEngineView {
         try { data = JSON.parse(rest.substring(kind.length + 1)) } catch (e) { return }
         if (kind === "login") loginSubmitted(data.username || pendingUsername, data.password)
         else if (kind === "username") pendingUsername = data.username
-        else if (kind === "passwordfocus") { hasLoginForm = true; loginBoxFocused() }
+        else if (kind === "passwordfocus") { hasLoginForm = true; loginBoxFocused(data.rect || null) }
         else if (kind === "newpassword") { hasLoginForm = true; newPasswordFocused() }
         else if (kind === "reader") readerOn = data.on === true
         else if (kind === "readerlook") {   // A− / A+ / Serif-Sans in the reading view: save, then redraw

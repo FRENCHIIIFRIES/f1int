@@ -74,6 +74,50 @@ Rectangle {
                     }
                 }
             }
+            // Your looks: saved themes (Work, Gaming, Night...), each a whole appearance. One click switches.
+            Text { text: qsTr("Your looks"); color: Theme.dim; font.pixelSize: Theme.px(12) }
+            Flow {
+                Layout.fillWidth: true
+                spacing: 6
+                Repeater {
+                    model: Theme.savedThemes
+                    Rectangle {
+                        id: lookChip
+                        required property var modelData
+                        width: lookName.implicitWidth + 26
+                        height: 30
+                        radius: 15
+                        color: lookHover.hovered ? Theme.hover : Theme.field
+                        Accessible.role: Accessible.Button
+                        Accessible.name: qsTr("Switch to %1").arg(modelData.name)
+                        Text { id: lookName; anchors.centerIn: parent; text: lookChip.modelData.name; color: Theme.fg; font.pixelSize: Theme.px(12) }
+                        HoverHandler { id: lookHover; cursorShape: Qt.PointingHandCursor }
+                        MouseArea { anchors.fill: parent; onClicked: Theme.apply(lookChip.modelData.values) }
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                Ui.Field { id: lookField; Layout.fillWidth: true; placeholderText: qsTr("Save this look as… (Work, Night)"); onAccepted: saveLook.clicked() }
+                Ui.Pill {
+                    id: saveLook
+                    text: qsTr("Save")
+                    enabled: lookField.text.trim() !== ""
+                    onClicked: {
+                        const name = lookField.text.trim().slice(0, 60)
+                        const others = Theme.savedThemes.filter(t => t.name !== name)   // same name: replaced
+                        Theme.storeThemes(others.concat([{ id: Date.now().toString(36), name: name, author: "", description: "", version: "1",
+                                                           source: "mine", favourite: false, values: Theme.snapshot() }]))
+                        lookField.text = ""
+                    }
+                }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Ui.Pill { text: qsTr("Undo"); enabled: Theme.canUndo; onClicked: Theme.history.undo() }
+                Item { Layout.fillWidth: true }
+            }
             // Accent pair: quick picks; any colour in the studio.
             Repeater {
                 model: [{ role: "accent", label: qsTr("Accent"), colours: ["#9b7bff", "#6ea8ff", "#3fa877", "#e0569b", "#e5484d", "#f0f0f0"] },

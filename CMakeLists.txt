@@ -50,6 +50,7 @@ qt_add_executable(f1int WIN32 MACOSX_BUNDLE
     src/Account.h src/Account.cpp src/SyncMerge.h
     src/Assets.h src/Assets.cpp
     src/Updater.h src/Updater.cpp
+    src/Favicons.h src/Favicons.cpp
 )
 target_compile_definitions(f1int PRIVATE F1INT_VERSION="${PROJECT_VERSION}")
 # Windows Hello / Touch ID for unlocking passwords.
@@ -108,6 +109,8 @@ qt_add_qml_module(f1int
         qml/AccountPage.qml
         qml/Fill.qml
         qml/PatternCanvas.qml
+        qml/BackgroundEditor.qml
+        qml/IconsEditor.qml
 )
 
 # Icons, logo, dot-matrix font and the starter ad-block list, built into the program
