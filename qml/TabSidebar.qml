@@ -77,7 +77,7 @@ Rectangle {
         z: -1
         anchors.fill: parent
         spec: Theme.sidebarFill
-        base: Theme.glass ? Qt.rgba(Theme.sidebar.r, Theme.sidebar.g, Theme.sidebar.b, Theme.glassTint) : Theme.sidebar
+        base: Theme.sidebar
     }
 
     HoverHandler {
@@ -336,7 +336,7 @@ Rectangle {
                     width: parent.width
                     text: nowPlaying.m.artist || (nowPlaying.m.title ? nowPlaying.m.tabTitle : qsTr("Playing in a tab"))
                     color: Theme.dim
-                    font.pixelSize: Theme.px(11)
+                    font.pixelSize: Theme.px(12)
                     elide: Text.ElideRight
                 }
             }

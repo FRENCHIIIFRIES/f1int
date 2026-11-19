@@ -47,7 +47,7 @@ ColumnLayout {
                                 width: 20; height: 20; radius: 10
                                 color: stepItem.reached ? Theme.accent : "transparent"
                                 border.width: 1; border.color: stepItem.reached ? Theme.accent : Theme.line
-                                Text { anchors.centerIn: parent; text: stepItem.index + 1; color: stepItem.reached ? Theme.textOnAccent : Theme.dim; font.pixelSize: Theme.px(11); font.family: Theme.numberFont; font.weight: Font.Bold }
+                                Text { anchors.centerIn: parent; text: stepItem.index + 1; color: stepItem.reached ? Theme.textOnAccent : Theme.dim; font.pixelSize: Theme.px(12); font.family: Theme.numberFont; font.weight: Font.Bold }
                             }
                             Text { text: stepItem.modelData; color: stepItem.reached ? Theme.fg : Theme.dim; font.pixelSize: Theme.px(12); anchors.verticalCenter: parent.verticalCenter }
                             Rectangle { visible: stepItem.index < 3; width: 18; height: 1; color: Theme.line; anchors.verticalCenter: parent.verticalCenter }
@@ -105,7 +105,7 @@ ColumnLayout {
                             Column {
                                 anchors.left: letter.right; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
                                 Text { text: profileCard.modelData.browser; color: Theme.fg; font.pixelSize: Theme.px(13); font.weight: Font.Medium }
-                                Text { text: profileCard.modelData.name; color: Theme.dim; font.pixelSize: Theme.px(11) }
+                                Text { text: profileCard.modelData.name; color: Theme.dim; font.pixelSize: Theme.px(12) }
                             }
                             Icon { anchors.right: parent.right; anchors.rightMargin: 14; anchors.verticalCenter: parent.verticalCenter; glyph: "forward"; color: Theme.dim; sourceSize: Qt.size(14, 14) }
                             MouseArea { anchors.fill: parent; onClicked: { io.picked = profileCard.modelData; io.step = 2 } }

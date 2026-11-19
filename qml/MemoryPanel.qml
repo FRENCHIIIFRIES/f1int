@@ -96,7 +96,7 @@ Rectangle {
                         spacing: 1
                         Layout.fillWidth: true
                         Text { text: modelData.title; color: Theme.fg; font.pixelSize: Theme.px(13); elide: Text.ElideRight; Layout.fillWidth: true }
-                        Text { text: modelData.state; color: modelData.state === qsTr("Active") ? Theme.accent : Theme.dim; font.pixelSize: Theme.px(11) }
+                        Text { text: modelData.state; color: modelData.state === qsTr("Active") ? Theme.accent : Theme.dim; font.pixelSize: Theme.px(12) }
                     }
                     Text {
                         text: modelData.bytes > 0 ? "~" + panel.mb(modelData.bytes) + " MB" : "0 MB"

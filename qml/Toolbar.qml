@@ -87,7 +87,7 @@ Rectangle {
                 anchors.centerIn: parent
                 spacing: 6
                 Icon { glyph: "incognito"; sourceSize: Qt.size(14, 14); anchors.verticalCenter: parent.verticalCenter }
-                Text { text: qsTr("Incognito"); color: Theme.fg; font.pixelSize: Theme.px(11); anchors.verticalCenter: parent.verticalCenter }
+                Text { text: qsTr("Incognito"); color: Theme.fg; font.pixelSize: Theme.px(12); anchors.verticalCenter: parent.verticalCenter }
             }
         }
 

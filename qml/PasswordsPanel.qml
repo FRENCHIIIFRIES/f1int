@@ -114,7 +114,7 @@ Rectangle {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 color: Theme.dim
-                font.pixelSize: Theme.px(11)
+                font.pixelSize: Theme.px(12)
                 text: qsTr("If you forget the master password it can't be recovered (but %1 keeps working if it's on).").arg(panel.deviceName)
             }
             Ui.Pill {
@@ -180,7 +180,7 @@ Rectangle {
                 Layout.fillWidth: true
                 wrapMode: Text.Wrap
                 color: Theme.dim
-                font.pixelSize: Theme.px(11)
+                font.pixelSize: Theme.px(12)
                 text: qsTr("Forgot the master password? You can delete the vault and start again (all saved passwords are lost).")
             }
             Ui.Pill { text: qsTr("Delete vault…"); onClicked: forgetPopup.open() }
@@ -231,7 +231,7 @@ Rectangle {
                             spacing: 1
                             Layout.fillWidth: true
                             Text { text: panel.host(modelData.origin); color: Theme.fg; font.pixelSize: Theme.px(13); elide: Text.ElideRight; Layout.fillWidth: true }
-                            Text { text: modelData.username || qsTr("(no username)"); color: Theme.dim; font.pixelSize: Theme.px(11); elide: Text.ElideRight; Layout.fillWidth: true }
+                            Text { text: modelData.username || qsTr("(no username)"); color: Theme.dim; font.pixelSize: Theme.px(12); elide: Text.ElideRight; Layout.fillWidth: true }
                         }
                         Ui.Badge { visible: modelData.weak; text: qsTr("weak") }
                         Ui.Badge { visible: modelData.reused; text: qsTr("reused") }

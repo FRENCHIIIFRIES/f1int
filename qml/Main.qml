@@ -687,7 +687,7 @@ ApplicationWindow {
                             verticalAlignment: Text.AlignVCenter
                             text: window.hoveredLink
                             color: Theme.dim
-                            font.pixelSize: Theme.px(11)
+                            font.pixelSize: Theme.px(12)
                             elide: Text.ElideMiddle
                         }
                     }
@@ -769,7 +769,7 @@ ApplicationWindow {
                         anchors.right: parent.right
                         anchors.top: parent.top
                         anchors.bottom: parent.bottom
-                        width: Math.min(400, parent.width - 40)
+                        width: Math.min(460, parent.width - 40)
                         sourceComponent: window.panel === "customise" ? settingsPanel
                                        : window.panel === "memory" ? memoryPanel
                                        : window.panel === "passwords" ? passwordsPanel : libraryPanel
@@ -793,7 +793,7 @@ ApplicationWindow {
                                 text: accountPicker.locked ? qsTr("Saved passwords")
                                       : window.view && window.host(window.view.url) !== "" ? qsTr("Sign in to %1 as").arg(window.host(window.view.url)) : qsTr("Sign in as")
                                 color: Theme.dim
-                                font.pixelSize: Theme.px(11)
+                                font.pixelSize: Theme.px(12)
                                 topPadding: 4; bottomPadding: 4
                             }
                             Repeater {
@@ -899,7 +899,7 @@ ApplicationWindow {
                                     x: 14; y: 12
                                     width: parent.width - 52
                                     spacing: 3
-                                    Text { text: toast.modelData.host; color: Theme.dim; font.pixelSize: Theme.px(11) }
+                                    Text { text: toast.modelData.host; color: Theme.dim; font.pixelSize: Theme.px(12) }
                                     Text { width: parent.width; text: toast.modelData.title; color: Theme.fg; font.pixelSize: Theme.px(13); font.weight: Font.DemiBold; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight }
                                     Text { width: parent.width; visible: text !== ""; text: toast.modelData.message; color: Theme.fg; font.pixelSize: Theme.px(12); wrapMode: Text.Wrap; maximumLineCount: 3; elide: Text.ElideRight }
                                 }

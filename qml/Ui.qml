@@ -48,7 +48,7 @@ QtObject {
         color: "transparent"
         border.width: 1
         border.color: Theme.accent
-        Text { id: badgeText; anchors.centerIn: parent; color: Theme.accent; font.pixelSize: Theme.px(10) }
+        Text { id: badgeText; anchors.centerIn: parent; color: Theme.accent; font.pixelSize: Theme.px(11) }
     }
 
     // A hidden secret shown as a row of round dots (dot-matrix style).
@@ -118,13 +118,13 @@ QtObject {
     // Text box with a thin border.
     component Field: TextField {
         id: field
-        implicitHeight: 32
+        implicitHeight: 36
         color: Theme.fg
         placeholderTextColor: Theme.dim
         selectionColor: Theme.accent
         selectedTextColor: Theme.textOnAccent
         selectByMouse: true
-        font.pixelSize: Theme.px(13)
+        font.pixelSize: Theme.px(14)
         leftPadding: 12
         background: Rectangle {
             radius: Theme.radius
@@ -138,19 +138,19 @@ QtObject {
     component Pill: Button {
         id: pill
         property bool primary: false
-        implicitHeight: 30
-        leftPadding: 14
-        rightPadding: 14
+        implicitHeight: 34
+        leftPadding: 18
+        rightPadding: 18
         contentItem: Text {
             text: pill.text
             color: pill.primary ? Theme.textOnAccent : (pill.enabled ? Theme.fg : Theme.dim)
-            font.pixelSize: Theme.px(12)
+            font.pixelSize: Theme.px(13)
             horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Text.AlignVCenter
         }
         background: Rectangle {
-            implicitWidth: 72
-            radius: 15
+            implicitWidth: 76
+            radius: 17
             color: pill.primary ? (pill.down ? Qt.darker(Theme.accent, 1.2) : Theme.accent)
                                 : (pill.down ? Theme.press : pill.hovered ? Theme.hover : "transparent")
             border.width: pill.primary ? 0 : 1
@@ -165,7 +165,7 @@ QtObject {
         property var value
         signal picked(var value)
         implicitWidth: row.implicitWidth + 6
-        implicitHeight: 30
+        implicitHeight: 34
         radius: Math.min(15, Theme.radius + 4)
         color: Theme.field
         Row {
@@ -177,8 +177,8 @@ QtObject {
                 Rectangle {
                     required property var modelData
                     readonly property bool on: seg.value === modelData.value
-                    width: label.implicitWidth + 22
-                    height: 24
+                    width: label.implicitWidth + 26
+                    height: 28
                     radius: Math.min(12, Theme.radius + 2)
                     // The picked choice is a soft raised pill (calm), not a loud accent fill.
                     color: on ? Theme.tab : hover.hovered ? Theme.hover : "transparent"
@@ -194,7 +194,7 @@ QtObject {
                         anchors.centerIn: parent
                         text: parent.modelData.label
                         color: parent.on ? Theme.fg : Theme.dim
-                        font.pixelSize: Theme.px(12)
+                        font.pixelSize: Theme.px(13)
                         font.weight: parent.on ? Font.Medium : Font.Normal
                     }
                     MouseArea { anchors.fill: parent; onClicked: seg.picked(parent.modelData.value) }
@@ -210,11 +210,13 @@ QtObject {
         Layout.fillWidth: true
         // While searching settings, a group with no matching rows hides.
         visible: Theme.settingsFilter === "" || box.visibleChildren.length > 0
-        spacing: 8
+        spacing: 10
         Text {
             text: parent.title
-            color: Theme.dim
-            font.pixelSize: Theme.px(12)
+            color: Theme.fg
+            opacity: 0.75
+            font.pixelSize: Theme.px(13)
+            font.weight: Font.DemiBold
             Layout.leftMargin: 4
         }
         Rectangle {
@@ -242,22 +244,22 @@ QtObject {
         default property alias control: slot.data
         Layout.fillWidth: true
         visible: Theme.settingsFilter === "" || (label + " " + hint).toLowerCase().indexOf(Theme.settingsFilter) >= 0
-        implicitHeight: Math.max(48, labels.implicitHeight + 24, slot.childrenRect.height + 20)
+        implicitHeight: Math.max(58, labels.implicitHeight + 30, slot.childrenRect.height + 24)
         ColumnLayout {
             id: labels
             anchors.left: parent.left
-            anchors.leftMargin: 16
+            anchors.leftMargin: 20
             anchors.right: slot.left
-            anchors.rightMargin: 12
+            anchors.rightMargin: 16
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 2
-            Text { text: settingRow.label; color: Theme.fg; font.pixelSize: Theme.px(13); Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Text { visible: settingRow.hint !== ""; text: settingRow.hint; color: Theme.dim; font.pixelSize: Theme.px(11); Layout.fillWidth: true; wrapMode: Text.Wrap }
+            spacing: 4
+            Text { text: settingRow.label; color: Theme.fg; font.pixelSize: Theme.px(14); Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Text { visible: settingRow.hint !== ""; text: settingRow.hint; color: Theme.dim; font.pixelSize: Theme.px(12); lineHeight: 1.15; Layout.fillWidth: true; wrapMode: Text.Wrap }
         }
         Item {
             id: slot
             anchors.right: parent.right
-            anchors.rightMargin: 14
+            anchors.rightMargin: 18
             anchors.verticalCenter: parent.verticalCenter
             width: childrenRect.width
             height: childrenRect.height
@@ -266,7 +268,7 @@ QtObject {
             visible: !settingRow.last
             anchors.bottom: parent.bottom
             anchors.left: parent.left
-            anchors.leftMargin: 16
+            anchors.leftMargin: 20
             anchors.right: parent.right
             height: 1
             color: Theme.line

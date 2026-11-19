@@ -63,7 +63,7 @@ Rectangle {
             delegate: Rectangle {
                 required property var modelData
                 width: ListView.view.width
-                height: 50
+                height: 58
                 radius: 8
                 color: rowHover.hovered ? Theme.hover : "transparent"
                 HoverHandler { id: rowHover }
@@ -89,13 +89,13 @@ Rectangle {
                     anchors.right: renameButton.left
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
-                    Text { text: modelData.title || modelData.url; color: Theme.fg; font.pixelSize: Theme.px(13); elide: Text.ElideRight; Layout.fillWidth: true }
+                    Text { text: modelData.title || modelData.url; color: Theme.fg; font.pixelSize: Theme.px(14); elide: Text.ElideRight; Layout.fillWidth: true }
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
                             text: modelData.url.replace(/^https?:\/\/(www\.)?/, "")
                             color: Theme.dim
-                            font.pixelSize: Theme.px(11)
+                            font.pixelSize: Theme.px(12)
                             elide: Text.ElideRight
                             Layout.fillWidth: true
                         }
@@ -196,7 +196,7 @@ Rectangle {
                               : item.done ? qsTr("Done, %1").arg(panel.size(item.modelData.totalBytes))
                               : panel.size(item.modelData.receivedBytes) + (item.modelData.totalBytes > 0 ? " / " + panel.size(item.modelData.totalBytes) : "")
                         color: item.failed ? Theme.accent : Theme.dim
-                        font.pixelSize: Theme.px(11)
+                        font.pixelSize: Theme.px(12)
                     }
                 }
                 MouseArea {   // click a finished download to open it

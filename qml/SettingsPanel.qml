@@ -62,7 +62,7 @@ Rectangle {
                         Rectangle { x: 30; y: 4; width: parent.width - 34; height: parent.height - 26; radius: 4; color: swatch.p.panel
                             Rectangle { x: 6; y: 6; width: 14; height: 6; radius: 3; color: swatch.p.accent }
                             Rectangle { x: 23; y: 6; width: 6; height: 6; radius: 3; color: swatch.p.accent2 } }
-                        Text { x: 32; y: parent.height - 18; text: swatch.p.name; color: swatch.p.fg; font.pixelSize: Theme.px(11) }
+                        Text { x: 32; y: parent.height - 18; text: swatch.p.name; color: swatch.p.fg; font.pixelSize: Theme.px(12) }
                         HoverHandler { cursorShape: Qt.PointingHandCursor }
                         MouseArea {
                             anchors.fill: parent

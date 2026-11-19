@@ -140,7 +140,7 @@ ColumnLayout {
             font.weight: card.active ? Font.DemiBold : Font.Normal
             elide: Text.ElideRight
         }
-        Text { x: 10; y: 112; text: card.active ? qsTr("In use") : card.subtitle; color: card.active ? Theme.accent : Theme.dim; font.pixelSize: Theme.px(10) }
+        Text { x: 10; y: 112; text: card.active ? qsTr("In use") : card.subtitle; color: card.active ? Theme.accent : Theme.dim; font.pixelSize: Theme.px(11) }
         MouseArea {
             anchors.fill: parent
             acceptedButtons: Qt.LeftButton | Qt.RightButton

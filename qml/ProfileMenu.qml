@@ -22,7 +22,7 @@ Popup {
             Column {
                 Layout.fillWidth: true
                 Text { text: Browser.profiles.currentName; color: Theme.fg; font.pixelSize: Theme.px(15); font.weight: Font.DemiBold; elide: Text.ElideRight; width: parent.width }
-                Text { text: qsTr("Local profile · stored on this computer"); color: Theme.dim; font.pixelSize: Theme.px(11) }
+                Text { text: qsTr("Local profile · stored on this computer"); color: Theme.dim; font.pixelSize: Theme.px(12) }
             }
         }
         Rectangle {   // account status
@@ -41,11 +41,11 @@ Popup {
                            .arg(menu.acc.syncStatus === "syncing" ? qsTr("Syncing…") : menu.acc.syncStatus === "error" ? qsTr("Sync problem") : qsTr("Synced"))
                            .arg(menu.acc.devices.length)
                 color: Theme.dim
-                font.pixelSize: Theme.px(11)
+                font.pixelSize: Theme.px(12)
             }
         }
         Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: Theme.line }
-        Text { text: qsTr("Other profiles"); color: Theme.dim; font.pixelSize: Theme.px(11); visible: others.count > 0 }
+        Text { text: qsTr("Other profiles"); color: Theme.dim; font.pixelSize: Theme.px(12); visible: others.count > 0 }
         Repeater {
             id: others
             model: Browser.profiles.list.filter(p => !p.current)

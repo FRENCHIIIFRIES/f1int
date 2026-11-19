@@ -22,7 +22,7 @@ Item {
                 required property int index
                 // Only chips that fit before the » button are shown.
                 visible: x + width <= bar.width - 48
-                width: Math.min(170, label.implicitWidth + 38)
+                width: label.text === "" ? 30 : Math.min(170, label.implicitWidth + 38)   // no name: logo only
                 height: 26
                 radius: Math.min(Theme.radius, 8)
                 color: chipMouse.pressed ? Theme.press : chipMouse.containsMouse && Theme.hoverEffects ? Theme.hover : "transparent"
@@ -42,7 +42,7 @@ Item {
                     x: 28
                     width: parent.width - 34
                     anchors.verticalCenter: parent.verticalCenter
-                    text: chip.modelData.title || String(chip.modelData.url).replace(/^https?:\/\/(www\.)?/, "")
+                    text: chip.modelData.title
                     color: Theme.fg
                     font.pixelSize: Theme.px(12)
                     elide: Text.ElideRight

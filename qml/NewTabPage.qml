@@ -282,7 +282,7 @@ Rectangle {
                         text: modelData.title
                         color: page.ink
                         opacity: 0.7
-                        font.pixelSize: Theme.px(11)
+                        font.pixelSize: Theme.px(12)
                         elide: Text.ElideRight
                     }
                 }
