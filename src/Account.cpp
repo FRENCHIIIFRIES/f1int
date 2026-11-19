@@ -759,7 +759,7 @@ QJsonObject Account::localItems(const QString &kind) const
     } else if (kind == QLatin1String("history")) {
         for (const QVariant &v : m_browser->library()->history({}, 5000)) {
             const QVariantMap h = v.toMap();
-            items.insert(h["url"].toString(), QJsonObject{ { "t", h["title"].toString() }, { "v", h["visits"].toInt() }, { "l", h["last_visit"].toLongLong() } });
+            items.insert(h["url"].toString(), QJsonObject{ { "t", h["title"].toString() }, { "v", h["visits"].toInt() }, { "l", h["time"].toLongLong() } });
         }
     } else if (kind == QLatin1String("settings")) {
         const QVariantMap all = m_browser->settingsForBackup();

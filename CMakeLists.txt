@@ -51,6 +51,7 @@ qt_add_executable(f1int WIN32 MACOSX_BUNDLE
     src/Assets.h src/Assets.cpp
     src/Updater.h src/Updater.cpp
     src/Favicons.h src/Favicons.cpp
+    src/WebStore.h
 )
 target_compile_definitions(f1int PRIVATE F1INT_VERSION="${PROJECT_VERSION}")
 # Windows Hello / Touch ID for unlocking passwords.

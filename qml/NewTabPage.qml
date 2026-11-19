@@ -256,8 +256,17 @@ Rectangle {
                         border.width: 1
                         border.color: hover.hovered ? Theme.accent : Theme.line
                         HoverHandler { id: hover }
+                        Image {   // the site's logo; its first letter until the logo arrives
+                            id: tileIcon
+                            anchors.centerIn: parent
+                            width: Math.round(parent.width * 0.46); height: width
+                            sourceSize: Qt.size(64, 64)
+                            source: { void Browser.favicons.revision; return Browser.favicons.icon(modelData.url) }
+                            visible: status === Image.Ready
+                        }
                         Text {
                             anchors.centerIn: parent
+                            visible: !tileIcon.visible
                             text: (modelData.title || modelData.url.replace(/^https?:\/\/(www\.)?/, "")).charAt(0).toUpperCase()
                             color: page.ink
                             font.family: Theme.numberFont

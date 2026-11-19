@@ -119,6 +119,15 @@ private slots:
         lib.addVisit(QUrl("https://www.yourfavourite.test/other"), "Fav");
         QCOMPARE(lib.predict("you"), QString("yourfavourite.test"));   // your own sites win
     }
+    void historyBackupKeepsTimes()
+    {
+        Library from(QStringLiteral(":memory:")), to(QStringLiteral(":memory:"));
+        from.addVisit(QUrl("https://a.test/"), "A");
+        const qint64 when = from.history().first().toMap()["time"].toLongLong();
+        QVERIFY(when > 0);
+        QCOMPARE(to.addHistory(from.history()), 1);   // what a backup carries
+        QCOMPARE(to.history().first().toMap()["time"].toLongLong(), when);
+    }
     void bookmarksHtmlRoundTrip()
     {
         QTemporaryDir dir;

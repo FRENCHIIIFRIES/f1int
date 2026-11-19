@@ -106,7 +106,7 @@ ApplicationWindow {
         return last
     }
     function showPanel(name) {
-        if (name === "passwords") return showSettings("passwords")   // passwords live in Settings now
+        if (name === "passwords" || name === "history" || name === "downloads") return showSettings(name)   // whole pages in Settings
         panel = panel === name ? "" : name
     }
     function showSettings(category) {   // open settings at a category (after it has loaded)
@@ -294,8 +294,9 @@ ApplicationWindow {
                 return
             }
             download.accept()
+            window.keepDownload(download)
             window.downloads = [download].concat(window.downloads)
-            window.panel = "downloads"
+            window.flash(qsTr("Downloading %1 · Ctrl+J to see it").arg(download.downloadFileName))
         }
     }
 
@@ -308,10 +309,25 @@ ApplicationWindow {
             download.downloadDirectory = path.substring(0, path.lastIndexOf("/"))
             download.downloadFileName = path.substring(path.lastIndexOf("/") + 1)
             download.accept()
+            window.keepDownload(download)
             window.downloads = [download].concat(window.downloads)
-            window.panel = "downloads"
+            window.flash(qsTr("Downloading %1 · Ctrl+J to see it").arg(download.downloadFileName))
         }
         onRejected: download.cancel()
+    }
+
+    // Finished downloads are remembered (last 200), so the list survives a restart. Not in incognito.
+    function keepDownload(d) {
+        if (incognito) return
+        d.stateChanged.connect(() => {
+            if (d.state !== WebEngineDownloadRequest.DownloadCompleted) return
+            let list = []
+            try { list = JSON.parse(String(setting("downloads/history", "[]"))) } catch (e) {}
+            const path = d.downloadDirectory + "/" + d.downloadFileName
+            list = [{ name: d.downloadFileName, path: path, size: d.totalBytes, time: Date.now(), url: String(d.url) }]
+                   .concat(list.filter(x => x.path !== path)).slice(0, 200)
+            Browser.setSetting("downloads/history", JSON.stringify(list))
+        })
     }
 
     onClosing: {
@@ -483,6 +499,17 @@ ApplicationWindow {
         }
     }
     property bool updateNoted: false
+    Connections {
+        target: Browser
+        function onWebStoreFailed(id, error) { if (window.active) window.flash(error) }
+    }
+    Connections {
+        target: Browser
+        function onExtensionAdded(name, error) {
+            if (window.active) window.flash(error ? qsTr("%1 couldn't be added: %2").arg(name || qsTr("The extension")).arg(error)
+                                                  : qsTr("%1 added. Manage it in Settings > Extensions").arg(name))
+        }
+    }
 
     ProfileMenu { id: profileMenu; onManageRequested: window.showSettings("general"); onAccountRequested: window.showSettings("account") }
 
@@ -749,6 +776,7 @@ ApplicationWindow {
                         active: window.panel === "settings"
                         sourceComponent: SettingsPage {
                             focus: true
+                            downloads: window.downloads
                             onCloseRequested: window.panel = ""
                             onOpenPanel: (name) => name === "passwords" ? window.showSettings("passwords") : window.panel = name
                             onWelcomeRequested: { window.panel = ""; window.showWelcome = true }
@@ -1090,6 +1118,8 @@ ApplicationWindow {
 
     // ---------- menus and dialogs ----------
     component Separator: MenuSeparator {
+        topPadding: 4
+        bottomPadding: 4
         contentItem: Rectangle { implicitHeight: 1; color: Theme.line }
     }
 

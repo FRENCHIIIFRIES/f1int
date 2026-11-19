@@ -25,6 +25,16 @@ QtObject {
                     panel: "#171415", raised: "#201c1d", fg: "#eeeaea", dim: "#978f90", accent: "#e5484d", accent2: "#d9d2d2" },
         mono:     { name: "Minimal mono", light: true, frame: "#f2f2f2", sidebar: "#e8e8e8", toolbar: "#f8f8f8", field: "#ececec", tab: "#ffffff",
                     panel: "#ffffff", raised: "#ffffff", fg: "#0a0a0a", dim: "#6b6b6b", accent: "#0a0a0a", accent2: "#d71921" },
+        forest:   { name: "Forest",   light: false, frame: "#121815", sidebar: "#0b100d", toolbar: "#17201b", field: "#213028", tab: "#1f2c25",
+                    panel: "#151d18", raised: "#1c2620", fg: "#e6efe9", dim: "#8fa397", accent: "#4fbf88", accent2: "#e6c25c" },
+        ocean:    { name: "Ocean",    light: false, frame: "#0f171c", sidebar: "#091015", toolbar: "#142028", field: "#1c2c37", tab: "#1a2a35",
+                    panel: "#121c23", raised: "#18252e", fg: "#e3eef4", dim: "#87a0ae", accent: "#3fb6d8", accent2: "#f2c94c" },
+        neon:     { name: "Neon",     light: false, frame: "#0d0b14", sidebar: "#07060c", toolbar: "#13101d", field: "#1d1830", tab: "#1c1630",
+                    panel: "#110e1a", raised: "#181324", fg: "#ecebff", dim: "#8f8aa8", accent: "#b16cff", accent2: "#2de2e6" },
+        lavender: { name: "Lavender", light: true,  frame: "#ece9f4", sidebar: "#e2ddef", toolbar: "#f5f3fa", field: "#e6e2f0", tab: "#fdfcff",
+                    panel: "#fdfcff", raised: "#ffffff", fg: "#1f1a2e", dim: "#6b6380", accent: "#7a5af5", accent2: "#d9467a" },
+        sakura:   { name: "Sakura",   light: true,  frame: "#f6ebee", sidebar: "#eedde2", toolbar: "#fbf4f6", field: "#f0e2e6", tab: "#fffafb",
+                    panel: "#fffafb", raised: "#ffffff", fg: "#2a1a1f", dim: "#7a5f67", accent: "#d6457a", accent2: "#3f8f66" },
         blank:    { name: "Blank",    light: false, frame: "#1d1d1d", sidebar: "#1d1d1d", toolbar: "#1d1d1d", field: "#2b2b2b", tab: "#2b2b2b",
                     panel: "#1d1d1d", raised: "#252525", fg: "#e6e6e6", dim: "#8c8c8c", accent: "#bdbdbd", accent2: "#bdbdbd" },
         paper:    { name: "Warm Paper", light: true,  frame: "#ecebe7", sidebar: "#e1e0db", toolbar: "#f5f4f1", field: "#e7e6e1", tab: "#fbfaf8",
@@ -32,7 +42,8 @@ QtObject {
         frost:    { name: "Frost",    light: true,  frame: "#e8edf2", sidebar: "#dbe2ea", toolbar: "#f4f7fa", field: "#e3e9ef", tab: "#ffffff",
                     panel: "#ffffff", raised: "#ffffff", fg: "#16202b", dim: "#5a6878", accent: "#2f6fdf", accent2: "#0f8f80" }
     })
-    readonly property var presetOrder: ["nothing", "mono", "obsidian", "midnight", "crimson", "paper", "frost", "blank"]
+    readonly property var presetOrder: ["nothing", "mono", "obsidian", "midnight", "crimson", "forest", "ocean", "neon",
+                                        "paper", "frost", "lavender", "sakura", "blank"]
     readonly property var roles: ["frame", "sidebar", "toolbar", "field", "tab", "panel", "raised", "fg", "dim", "accent", "accent2",
                                   "tabIdle", "icon", "border", "hover"]
     // Parts every preset leaves to be worked out from its text colour unless you set them.
@@ -46,9 +57,42 @@ QtObject {
     readonly property string darkPreset: validPreset(setting("appearance/darkPreset", "obsidian"), "obsidian")
     readonly property string lightPreset: validPreset(setting("appearance/lightPreset", "paper"), "paper")
     readonly property string preset: wantDark ? darkPreset : lightPreset
-    readonly property var base: presets[preset]
+    readonly property var base: preset === "auto" ? autoPalette : presets[preset]
     readonly property bool dark: !base.light
-    function validPreset(name, fallback) { return presets[name] ? String(name) : fallback }
+    function validPreset(name, fallback) { return presets[name] || name === "auto" ? String(name) : fallback }
+
+    // ---------- Automatic: f1int picks calm colours for you ----------
+    // One hue (from your wallpaper, your Windows accent, or "Surprise me") becomes a whole
+    // palette: surfaces barely tinted with it, soft text, a gentle accent and a neighbouring
+    // second accent. Light or dark follows the Theme choice.
+    readonly property real autoHue: {
+        const own = Number(setting("appearance/autoHue", -1))
+        if (own >= 0 && own <= 1) return own
+        const fromDesktop = Browser.desktopHue()
+        return fromDesktop >= 0 ? fromDesktop : 0.72   // nothing to go on: a quiet violet
+    }
+    function calmPalette(h, light) {
+        const c = (s, l, hh) => String(Qt.hsla(((hh === undefined ? h : hh) % 1 + 1) % 1, s, l, 1))
+        const a = h < 0.05 || h > 0.95 ? 0.93 : h   // never a red accent: a red wallpaper gets rose
+        return light
+            ? { name: "Automatic", light: true, frame: c(0.18, 0.93), sidebar: c(0.20, 0.89), toolbar: c(0.16, 0.965), field: c(0.16, 0.915),
+                tab: c(0.30, 0.995), panel: c(0.25, 0.99), raised: "#ffffff", fg: c(0.20, 0.13), dim: c(0.10, 0.42),
+                accent: c(0.50, 0.46, a), accent2: c(0.45, 0.42, a + 0.12) }
+            : { name: "Automatic", light: false, frame: c(0.14, 0.085), sidebar: c(0.16, 0.055), toolbar: c(0.13, 0.11), field: c(0.12, 0.16),
+                tab: c(0.13, 0.15), panel: c(0.12, 0.095), raised: c(0.12, 0.13), fg: c(0.12, 0.92), dim: c(0.08, 0.63),
+                accent: c(0.55, 0.68, a), accent2: c(0.55, 0.72, a + 0.12) }
+    }
+    readonly property var autoPalette: calmPalette(autoHue, !wantDark)
+    readonly property bool automatic: darkPreset === "auto" || lightPreset === "auto"
+    function useAutomatic(on) {
+        Browser.setSetting("appearance/darkPreset", on ? "auto" : "obsidian")
+        Browser.setSetting("appearance/lightPreset", on ? "auto" : "paper")
+    }
+    function surprise() {   // a fresh calm hue, not too close to the current one
+        let h = Math.random()
+        if (Math.abs(h - autoHue) < 0.12) h = (h + 0.35) % 1
+        Browser.setSetting("appearance/autoHue", Math.round(h * 1000) / 1000)
+    }
 
     // A colour for a role: your change for this preset if you made one, else the preset's.
     function role(name) {

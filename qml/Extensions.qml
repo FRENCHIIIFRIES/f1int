@@ -16,6 +16,11 @@ ColumnLayout {
     function refresh() { list = manager ? manager.extensions : [] }
     function done(info, verb) { refresh(); message = info.error ? qsTr("%1: %2").arg(info.name || qsTr("Extension")).arg(info.error) : qsTr("%1 %2.").arg(info.name).arg(verb) }
     Connections {
+        target: Browser
+        function onWebStoreFailed(id, error) { ext.message = error }
+        function onExtensionAdded(name, error) { ext.refresh(); ext.message = error ? qsTr("%1: %2").arg(name || qsTr("Extension")).arg(error) : qsTr("%1 added.").arg(name) }
+    }
+    Connections {
         target: ext.manager
         function onInstallFinished(info) { ext.done(info, qsTr("added")) }
         function onLoadFinished(info) { ext.done(info, qsTr("loaded")) }
@@ -67,6 +72,20 @@ ColumnLayout {
     Ui.Section {
         title: qsTr("Add an extension")
         Ui.SettingRow {
+            label: qsTr("From the Chrome Web Store")
+            hint: qsTr("Open an extension's page in the store and press \"Add to f1int\", or paste its link here")
+            Row {
+                spacing: 8
+                Ui.Field { id: storeLink; width: 220; placeholderText: qsTr("chromewebstore.google.com/detail/…"); onAccepted: addStore.clicked() }
+                Ui.Pill {
+                    id: addStore
+                    text: qsTr("Add")
+                    enabled: Browser.webStoreId(Browser.urlFromInput(storeLink.text)) !== ""
+                    onClicked: { Browser.installFromWebStore(Browser.webStoreId(Browser.urlFromInput(storeLink.text))); storeLink.text = ""; ext.message = qsTr("Adding…") }
+                }
+            }
+        }
+        Ui.SettingRow {
             label: qsTr("From a folder")
             hint: qsTr("An unpacked extension (the folder with manifest.json)")
             Ui.Pill { text: qsTr("Choose folder…"); onClicked: folderDialog.open() }
@@ -83,7 +102,7 @@ ColumnLayout {
         wrapMode: Text.WordWrap
         color: Theme.dim
         font.pixelSize: Theme.px(12)
-        text: qsTr("f1int can't install straight from the Chrome Web Store: download an extension's files from its developer (often on GitHub) and add them here. Qt WebEngine supports many, not all, extension features.")
+        text: qsTr("f1int runs Chrome extensions through Qt WebEngine, which supports many, not all, of their features: simple ones (ad blockers, dark mode, page tools) work best.")
     }
     FolderDialog { id: folderDialog; onAccepted: ext.manager.installExtension(Browser.localPath(selectedFolder)) }
     FileDialog { id: zipDialog; nameFilters: [qsTr("Extensions (*.zip)")]; onAccepted: ext.manager.installExtension(Browser.localPath(selectedFile)) }

@@ -414,7 +414,7 @@ int Library::addHistory(const QVariantList &entries)
             continue;
         exec(QStringLiteral("INSERT INTO history (url, title, last_visit, visits) VALUES (?, ?, ?, ?) ON CONFLICT(url) DO UPDATE SET "
                             "visits = max(visits, excluded.visits), last_visit = max(last_visit, excluded.last_visit)"),
-             { url.toString(), e["title"].toString(), e["last_visit"].toLongLong(), qMax(1, e["visits"].toInt()) });
+             { url.toString(), e["title"].toString(), (e.contains("last_visit") ? e["last_visit"] : e["time"]).toLongLong(), qMax(1, e["visits"].toInt()) });
         ++count;
     }
     db.commit();

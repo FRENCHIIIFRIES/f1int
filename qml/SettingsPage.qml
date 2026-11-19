@@ -14,6 +14,7 @@ Rectangle {
     signal welcomeRequested()
     signal newTabPageRequested()
     signal openUrl(url url)
+    property var downloads: []         // this window's downloads (live)
 
     function get(key, fallback) { void Browser.settingsRevision; return Browser.setting(key, fallback) }
     function set(key, value) { Browser.setSetting(key, value) }
@@ -26,6 +27,7 @@ Rectangle {
         { id: "tabs", icon: "window", label: qsTr("Tabs and memory") },
         { id: "newtab", icon: "plus", label: qsTr("New tab page") },
         { id: "passwords", icon: "key", label: qsTr("Passwords") },
+        { id: "history", icon: "history", label: qsTr("History") },
         { id: "privacy", icon: "shield", label: qsTr("Privacy and security") },
         { id: "data", icon: "folder", label: qsTr("Import and backup") },
         { id: "downloads", icon: "download", label: qsTr("Downloads") },
@@ -118,7 +120,14 @@ Rectangle {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        visible: page.category === "passwords" && Theme.settingsFilter === ""
+        // Passwords, History and Downloads are whole pages (a list that fills the height).
+        id: fullArea
+        readonly property bool fullPage: ["passwords", "history", "downloads"].indexOf(page.category) >= 0
+        readonly property string which: page.category      // (names that won't clash inside LibraryPanel)
+        readonly property var live: page.downloads
+        function close() { page.closeRequested() }
+        function go(u) { page.openUrl(u) }
+        visible: fullPage && Theme.settingsFilter === ""
         z: 1
         color: Theme.bg
         Loader {   // a readable column, like the other settings
@@ -126,7 +135,19 @@ Rectangle {
             height: parent.height
             anchors.horizontalCenter: parent.horizontalCenter
             active: parent.visible
-            sourceComponent: PasswordsPanel { embedded: true; color: Theme.bg; onCloseRequested: page.closeRequested() }
+            sourceComponent: page.category === "passwords" ? passwordsFull : libraryFull
+        }
+        Component { id: passwordsFull; PasswordsPanel { embedded: true; color: Theme.bg; onCloseRequested: page.closeRequested() } }
+        Component {
+            id: libraryFull
+            LibraryPanel {
+                embedded: true
+                color: Theme.bg
+                page: fullArea.which
+                downloads: fullArea.live
+                onCloseRequested: fullArea.close()
+                onOpenUrl: (u) => fullArea.go(u)
+            }
         }
     }
 
@@ -311,6 +332,23 @@ Rectangle {
                     last: true
                     Ui.Field { width: 240; text: page.get("newtab/url", ""); placeholderText: "example.com"; onEditingFinished: page.set("newtab/url", text.trim()) }
                 }
+            }
+            Ui.Section {
+                title: qsTr("Downloads")
+                Ui.SettingRow {
+                    label: qsTr("Save files to")
+                    hint: Browser.profile.downloadPath
+                    Ui.Pill { text: qsTr("Change…"); onClicked: folderDialog.open() }
+                }
+                Ui.SettingRow {
+                    label: qsTr("Ask where to save each file")
+                    last: true
+                    Ui.Toggle { checked: page.get("downloads/ask", false); onToggled: page.set("downloads/ask", checked) }
+                }
+            }
+            FolderDialog {
+                id: folderDialog
+                onAccepted: { const p = Browser.localPath(selectedFolder); Browser.profile.downloadPath = p; page.set("downloads/path", p) }
             }
             Ui.Section {
                 visible: Qt.platform.os === "windows"
@@ -574,29 +612,7 @@ Rectangle {
         id: dataPage
         ImportExport { onOpenPasswords: page.category = "passwords" }
     }
-    Component {
-        id: downloadsPage
-        ColumnLayout {
-            spacing: 22
-            Ui.Section {
-                title: qsTr("Saving files")
-                Ui.SettingRow {
-                    label: qsTr("Save files to")
-                    hint: Browser.profile.downloadPath
-                    Ui.Pill { text: qsTr("Change…"); onClicked: folderDialog.open() }
-                }
-                Ui.SettingRow {
-                    label: qsTr("Ask where to save each file")
-                    last: true
-                    Ui.Toggle { checked: page.get("downloads/ask", false); onToggled: page.set("downloads/ask", checked) }
-                }
-            }
-            FolderDialog {
-                id: folderDialog
-                onAccepted: { const p = Browser.localPath(selectedFolder); Browser.profile.downloadPath = p; page.set("downloads/path", p) }
-            }
-        }
-    }
+    Component { id: downloadsPage; Item {} }   // (the list is a whole page; its settings are in General)
     Component {
         id: extensionsPage
         Extensions { onOpenUrl: (u) => page.openUrl(u) }

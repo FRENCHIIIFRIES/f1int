@@ -11,6 +11,14 @@
 #include <QQuickWindow>
 #include <QUuid>
 #include <QFile>
+#include <cmath>
+#include <QImage>
+#include <QProcess>
+#include <QNetworkReply>
+#include "WebStore.h"
+#include <QtWebEngineCore/QWebEngineExtensionManager>
+#include <QtWebEngineCore/QWebEngineExtensionInfo>
+#include <QtWebEngineCore/qtwebenginecoreglobal.h>
 #include <algorithm>
 #include <QCryptographicHash>
 #include <QDesktopServices>
@@ -61,6 +69,8 @@ Browser::Browser(QObject *parent)
     m_profile->setOffTheRecord(false);
     setUpProfile(m_profile);
     applyColorScheme();
+    connect(m_profile->extensionManager(), &QWebEngineExtensionManager::installFinished, this,
+            [this](const QWebEngineExtensionInfo &info) { emit extensionAdded(info.name(), info.error()); });
 
     m_adBlocker->enabled = setting(QStringLiteral("privacy/adblock"), true).toBool();
     connect(m_adBlocker, &AdBlocker::blocked, this, &Browser::blockedChanged);
@@ -479,6 +489,97 @@ void Browser::makeDefaultBrowser()
     SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
     QDesktopServices::openUrl(QUrl(QStringLiteral("ms-settings:defaultapps?registeredAppUser=f1int")));
 #endif
+}
+
+bool Browser::fileExists(const QString &path) const { return QFileInfo::exists(path); }
+
+qreal Browser::desktopHue() const
+{
+#ifdef Q_OS_WIN
+    static qreal cached = -2;   // worked out once per run (reading the wallpaper isn't free)
+    if (cached > -2)
+        return cached;
+    cached = -1;
+    // The picture Windows actually shows (a copy it keeps for the current wallpaper).
+    const QImage wall(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation).replace("/Local", "/Roaming")
+                      + QStringLiteral("/Microsoft/Windows/Themes/TranscodedWallpaper"));
+    if (!wall.isNull()) {
+        // Average the hues of the colourful pixels (weighted by how colourful they are).
+        const QImage thumb = wall.scaled(48, 48, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+        double x = 0, y = 0;
+        for (int i = 0; i < thumb.height(); ++i)
+            for (int j = 0; j < thumb.width(); ++j) {
+                const QColor c = thumb.pixelColor(j, i);
+                const double w = c.hsvSaturationF() * c.valueF();
+                if (c.hsvHueF() < 0 || w < 0.12)
+                    continue;
+                x += w * std::cos(6.283185307179586 * c.hsvHueF());
+                y += w * std::sin(6.283185307179586 * c.hsvHueF());
+            }
+        if (std::hypot(x, y) > 20)
+            return cached = std::fmod(std::atan2(y, x) / (6.283185307179586) + 1.0, 1.0);
+    }
+    // Else the Windows accent colour (stored as 0xAABBGGRR).
+    const QSettings dwm(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\DWM"), QSettings::NativeFormat);
+    bool ok = false;
+    const uint v = dwm.value(QStringLiteral("AccentColor")).toUInt(&ok);
+    if (ok) {
+        const QColor accent(v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff);
+        if (accent.hsvHueF() >= 0)
+            cached = accent.hsvHueF();
+    }
+    return cached;
+#else
+    return -1;   // shortcut: macOS wallpaper colour not read yet; Automatic uses its default hue
+#endif
+}
+
+void Browser::showInFolder(const QString &path) const
+{
+#ifdef Q_OS_WIN
+    if (QFileInfo::exists(path)) {   // Explorer opens the folder with the file selected
+        QProcess::startDetached(QStringLiteral("explorer.exe"), { QStringLiteral("/select,") + QDir::toNativeSeparators(path) });
+        return;
+    }
+#endif
+    QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+}
+
+QString Browser::webStoreId(const QUrl &url) const { return WebStore::webStoreId(url); }
+
+void Browser::installFromWebStore(const QString &id)
+{
+    static const QRegularExpression ok(QStringLiteral("^[a-p]{32}$"));
+    if (!ok.match(id).hasMatch())
+        return emit webStoreFailed(id, tr("That isn't a Chrome Web Store extension."));
+    // The same address Chrome itself downloads extensions from.
+    QUrl url(QStringLiteral("https://clients2.google.com/service/update2/crx"));
+    url.setQuery(QStringLiteral("response=redirect&acceptformat=crx2,crx3&prodversion=%1&x=id%3D%2%26uc")
+                     .arg(QString::fromLatin1(qWebEngineChromiumVersion()), id));
+    QNetworkRequest req(url);
+    req.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::NoLessSafeRedirectPolicy);
+    req.setTransferTimeout(60000);
+    auto *net = new QNetworkAccessManager(this);
+    QNetworkReply *reply = net->get(req);
+    connect(reply, &QNetworkReply::finished, this, [this, reply, net, id] {
+        reply->deleteLater();
+        net->deleteLater();
+        const QString host = reply->url().host();
+        if (reply->error() != QNetworkReply::NoError)
+            return emit webStoreFailed(id, tr("Couldn't download the extension: %1").arg(reply->errorString()));
+        if (!host.endsWith(QLatin1String(".google.com")) && !host.endsWith(QLatin1String(".googleusercontent.com")))
+            return emit webStoreFailed(id, tr("The download came from an unexpected place, so it wasn't installed."));
+        const QByteArray zip = WebStore::zipFromCrx(reply->readAll());
+        if (zip.isEmpty())
+            return emit webStoreFailed(id, tr("That extension couldn't be read."));
+        const QString dir = m_dataDir + QStringLiteral("/webstore");
+        QDir().mkpath(dir);
+        QFile file(dir + QLatin1Char('/') + id + QStringLiteral(".zip"));
+        if (!file.open(QIODevice::WriteOnly) || file.write(zip) != zip.size())
+            return emit webStoreFailed(id, tr("Couldn't save the extension."));
+        file.close();
+        m_profile->extensionManager()->installExtension(file.fileName());
+    });
 }
 
 QString Browser::readTextFile(const QUrl &file) const

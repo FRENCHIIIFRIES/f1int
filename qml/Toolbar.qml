@@ -101,7 +101,7 @@ Rectangle {
             Layout.rightMargin: bar.stacked ? 0 : 6
             implicitHeight: Theme.rowHeight
             leftPadding: 34
-            rightPadding: 122   // room for the activity dot, key, reading view and star
+            rightPadding: 122 + (Browser.webStoreId(bar.view ? bar.view.url : "") !== "" ? 110 : 0)   // room for the buttons inside
             color: Theme.fg
             placeholderText: qsTr("Search or enter address")
             placeholderTextColor: Theme.dim
@@ -157,6 +157,15 @@ Rectangle {
                     iconColor: Browser.passwords.state === "unlocked" ? Theme.fg : Theme.dim
                     tip: qsTr("Passwords for this site")
                     onClicked: bar.keyRequested(keyButton)
+                }
+                Ui.Pill {   // on a Chrome Web Store extension page: install it into f1int
+                    readonly property string storeId: bar.view ? Browser.webStoreId(bar.view.url) : ""
+                    visible: storeId !== ""
+                    primary: true
+                    implicitHeight: 26
+                    text: qsTr("Add to f1int")
+                    onClicked: { Browser.installFromWebStore(storeId); text = qsTr("Adding…") }
+                    onStoreIdChanged: text = qsTr("Add to f1int")
                 }
                 IconButton {   // reading view: just the article, in a clean layout (F9)
                     implicitWidth: 26

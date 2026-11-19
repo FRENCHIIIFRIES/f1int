@@ -291,7 +291,7 @@ ColumnLayout {
             if (kind === "bookmarks") ok = Browser.library.exportBookmarksHtml(selectedFile)
             else if (kind === "history") {
                 const q = (s) => '"' + String(s === undefined ? "" : s).replace(/"/g, '""') + '"'
-                const rows = Browser.library.history("", 1000000).map(h => [q(h.url), q(h.title), q(new Date(Number(h.last_visit)).toISOString()), q(h.visits)].join(","))
+                const rows = Browser.library.history("", 1000000).map(h => [q(h.url), q(h.title), q(new Date(Number(h.time)).toISOString()), q(h.visits)].join(","))
                 ok = Browser.writeTextFile(selectedFile, "url,title,last_visit,visits\n" + rows.join("\n"))
             } else {
                 const backup = { format: "f1int-backup", version: 1, created: new Date().toISOString(), settings: Browser.settingsForBackup(),

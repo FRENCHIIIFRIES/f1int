@@ -37,7 +37,52 @@ Rectangle {
                 value: Theme.mode
                 onPicked: (v) => panel.set("appearance/theme", v)
             }
-            Text { text: qsTr("Theme"); color: Theme.dim; font.pixelSize: Theme.px(12) }
+            // Let f1int choose: calm colours that match your desktop.
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: autoCol.implicitHeight + 28
+                radius: Theme.cardRadius
+                color: Theme.automatic ? Theme.accentSoft : Theme.field
+                border.width: Theme.automatic ? 1 : 0
+                border.color: Theme.accent
+                ColumnLayout {
+                    id: autoCol
+                    x: 14; y: 14
+                    width: parent.width - 28
+                    spacing: 8
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Column {
+                            Layout.fillWidth: true
+                            Text { text: qsTr("Let f1int choose"); color: Theme.fg; font.pixelSize: Theme.px(15); font.weight: Font.DemiBold }
+                            Text {
+                                width: parent.width
+                                wrapMode: Text.WordWrap
+                                text: qsTr("Calm colours picked to match your desktop wallpaper")
+                                color: Theme.dim
+                                font.pixelSize: Theme.px(12)
+                            }
+                        }
+                        Ui.Toggle { checked: Theme.automatic; onToggled: Theme.useAutomatic(checked); Accessible.name: qsTr("Let f1int choose the colours") }
+                    }
+                    Row {
+                        visible: Theme.automatic
+                        spacing: 6
+                        Repeater {   // the palette it picked
+                            model: ["sidebar", "frame", "panel", "fg", "accent", "accent2"]
+                            Rectangle { required property string modelData; width: 22; height: 22; radius: 11; color: Theme.autoPalette[modelData]; border.width: 1; border.color: Theme.line }
+                        }
+                    }
+                    Row {
+                        visible: Theme.automatic
+                        spacing: 8
+                        Ui.Pill { text: qsTr("Surprise me"); onClicked: Theme.surprise() }
+                        Ui.Pill { text: qsTr("Match my wallpaper"); enabled: Number(Browser.setting("appearance/autoHue", -1)) >= 0; onClicked: Browser.resetSetting("appearance/autoHue") }
+                    }
+                }
+            }
+            Ui.Pill { Layout.fillWidth: true; text: qsTr("Customise everything…"); onClicked: panel.studioRequested() }
+            Text { text: qsTr("Or pick a theme"); color: Theme.dim; font.pixelSize: Theme.px(12) }
             GridLayout {
                 columns: 3
                 columnSpacing: 8
@@ -172,7 +217,6 @@ Rectangle {
                 Text { text: qsTr("Tabs on the right"); color: Theme.fg; font.pixelSize: Theme.px(13); Layout.fillWidth: true }
                 Ui.Toggle { checked: Theme.tabsOnRight; onToggled: panel.set("layout/tabsSide", checked ? "right" : "left") }
             }
-            Ui.Pill { primary: true; text: qsTr("Open Appearance Studio"); onClicked: panel.studioRequested() }
         }
     }
 }

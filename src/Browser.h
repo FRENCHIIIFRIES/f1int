@@ -103,6 +103,16 @@ public:
     Q_INVOKABLE QUrl urlFromInput(const QString &text) const;
     Q_INVOKABLE QString localPath(const QUrl &fileUrl) const { return fileUrl.toLocalFile(); }
     Q_INVOKABLE QUrl fileUrl(const QString &path) const { return QUrl::fromLocalFile(path); }
+    Q_INVOKABLE bool fileExists(const QString &path) const;
+    // The main hue of your desktop wallpaper (or your Windows accent colour): 0..1, or -1.
+    Q_INVOKABLE qreal desktopHue() const;
+    // ---- Chrome Web Store ----
+    // The extension id in a store link ("" if it isn't one).
+    Q_INVOKABLE QString webStoreId(const QUrl &url) const;
+    // Downloads that extension from Google's update server and installs it. The result comes
+    // through the extension manager (installFinished) or webStoreFailed.
+    Q_INVOKABLE void installFromWebStore(const QString &id);
+    Q_INVOKABLE void showInFolder(const QString &path) const;   // opens the folder with the file selected
 
     // Saved preferences. Keys look like "group/name", e.g. "tabbar/width".
     Q_INVOKABLE QVariant setting(const QString &key, const QVariant &fallback = {}) const;
@@ -128,7 +138,9 @@ public:
     Q_INVOKABLE QVariantMap battery() const;
 
 signals:
-    void openRequested(const QStringList &urls);   // links from another start (empty = a new window)
+    void openRequested(const QStringList &urls);
+    void webStoreFailed(const QString &id, const QString &error);
+    void extensionAdded(const QString &name, const QString &error);   // after any install (error "" = fine)   // links from another start (empty = a new window)
     void settingChanged();
     void blockedChanged();
     void siteActivity(const QString &host);   // a page on `host` is sending requests
