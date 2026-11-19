@@ -38,6 +38,9 @@ public:
 
     // Address bar suggestions: bookmarks first, then the most visited history.
     Q_INVOKABLE QVariantList suggest(const QString &text, int limit = 6) const;
+    // The site you most likely mean by what you've typed so far ("you" -> "youtube.com"):
+    // your most visited matching site, else a well-known one. "" if nothing fits.
+    Q_INVOKABLE QString predict(const QString &typed) const;
 
     // ---- import from other browsers on this computer ----
     // [{ browser, name, path, kind }] for every profile found (kind "chromium" or "firefox").

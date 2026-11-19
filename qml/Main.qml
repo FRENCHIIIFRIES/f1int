@@ -508,6 +508,22 @@ ApplicationWindow {
     function applyFrame() { Browser.applyFrameColors(window, Theme.sidebar, Theme.fg, Theme.dark) }
     Connections { target: Theme; function onSidebarChanged() { window.applyFrame() } }
 
+    // Links from another start of f1int (e.g. clicked in another app): the last-used window opens them.
+    onActiveChanged: if (active && !incognito) Browser.lastWindow = window
+    Connections {
+        target: Browser
+        function onOpenRequested(urls) {
+            const last = Browser.lastWindow
+            if (window.incognito || (last && last !== window)) return
+            if (urls.length === 0) return Browser.newWindow(false)   // started from the Start menu: a new window
+            for (const u of urls) window.newTab(u)
+            window.showNormal(); window.raise(); window.requestActivate()
+        }
+    }
+    // Ask once (not in incognito or tests) to be the default browser.
+    property bool askDefault: Qt.platform.os === "windows" && !incognito && Browser.uiTestScript.toString() === ""
+                              && !Browser.setting("default/asked", false) && !Browser.isDefaultBrowser()
+
     // First run: the welcome intro over everything (not in incognito or UI tests).
     property bool showWelcome: !incognito && Browser.uiTestScript.toString() === "" && !Browser.setting("welcome/done", false)
     Loader {
@@ -849,6 +865,13 @@ ApplicationWindow {
                         spacing: 8
                         width: 330
 
+                        PromptCard {
+                            visible: window.askDefault && !window.showWelcome
+                            title: qsTr("Make f1int your default browser?")
+                            detail: qsTr("Links from other apps and your PDFs open in f1int")
+                            Ui.Pill { text: qsTr("Not now"); onClicked: { Browser.setSetting("default/asked", true); window.askDefault = false } }
+                            Ui.Pill { primary: true; text: qsTr("Make default"); onClicked: { Browser.setSetting("default/asked", true); window.askDefault = false; Browser.makeDefaultBrowser() } }
+                        }
                         PromptCard {
                             visible: window.notifyPrompt !== null
                             title: window.notifyPrompt ? qsTr("%1 wants to show notifications").arg(window.host(window.notifyPrompt.origin)) : ""

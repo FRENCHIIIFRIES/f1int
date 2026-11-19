@@ -1,5 +1,6 @@
 #include "UrlInput.h"
 
+#include <QFileInfo>
 #include <QRegularExpression>
 
 QUrl urlFromInput(const QString &input, const QString &searchTemplate)
@@ -14,6 +15,11 @@ QUrl urlFromInput(const QString &input, const QString &searchTemplate)
         QRegularExpression::CaseInsensitiveOption);
     if (knownScheme.match(text).hasMatch())
         return QUrl(text);
+
+    // A file on this computer (what Windows passes when you open a PDF or page with f1int).
+    const QFileInfo file(text);
+    if (file.isAbsolute() && file.exists())
+        return QUrl::fromLocalFile(file.absoluteFilePath());
 
     // 2. One "word" that looks like an address: "example.com/page", "localhost:3000", "10.0.0.1".
     static const QRegularExpression space(QStringLiteral("\\s"));

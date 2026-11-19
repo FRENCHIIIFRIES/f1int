@@ -44,6 +44,8 @@ class Browser : public QObject
     Q_PROPERTY(QString passwordScript READ passwordScript CONSTANT)
     Q_PROPERTY(Profiles *profiles READ profiles CONSTANT)
     Q_PROPERTY(Account *account READ account CONSTANT)
+    // The normal window used last: links from other apps open there. (QPointer: safe after it closes.)
+    Q_PROPERTY(QObject *lastWindow READ lastWindow WRITE setLastWindow)
     Q_PROPERTY(Assets *assets READ assets CONSTANT)
     Q_PROPERTY(Updater *updater READ updater CONSTANT)
     Q_PROPERTY(Favicons *favicons READ favicons CONSTANT)
@@ -64,10 +66,17 @@ public:
     PasswordVault *passwords() const { return m_vault; }
     Profiles *profiles() const { return m_profiles; }
     Account *account() const { return m_account; }
+    QObject *lastWindow() const { return m_lastWindow; }
+    void setLastWindow(QObject *w) { m_lastWindow = w; }
     Assets *assets() const { return m_assets; }
     Updater *updater() const { return m_updater; }
     Favicons *favicons() const { return m_favicons; }
     static inline QString startProfile;   // set by main() from --profile
+    // True if another f1int (same profile) took `args`; this one should quit.
+    static bool handOver(const QStringList &args);
+    // ---- default browser (Windows) ----
+    Q_INVOKABLE bool isDefaultBrowser() const;
+    Q_INVOKABLE void makeDefaultBrowser();   // registers f1int with Windows, then opens its Default apps page
     QString passwordMessagePrefix() const { return QStringLiteral("f1int:") + m_nonce + QLatin1Char(':'); }
     QString passwordScript() const;
     // A page helper from resources/scripts (media, reader), with the message secret filled in.
@@ -119,6 +128,7 @@ public:
     Q_INVOKABLE QVariantMap battery() const;
 
 signals:
+    void openRequested(const QStringList &urls);   // links from another start (empty = a new window)
     void settingChanged();
     void blockedChanged();
     void siteActivity(const QString &host);   // a page on `host` is sending requests
@@ -126,7 +136,8 @@ signals:
 
 private:
     void setUpProfile(QQuickWebEngineProfile *profile);
-    void applyColorScheme();   // light/dark window frame to match the theme setting
+    void applyColorScheme();
+    void listenForOthers();   // light/dark window frame to match the theme setting
     void scheduleSave();
     void writeSession();
     void loadFilterLists();
@@ -140,6 +151,7 @@ private:
     QString m_dataDir;
     Profiles *m_profiles = nullptr;
     Account *m_account = nullptr;
+    QPointer<QObject> m_lastWindow;
     Assets *m_assets = nullptr;
     Updater *m_updater = nullptr;
     Favicons *m_favicons = nullptr;

@@ -108,6 +108,17 @@ private slots:
         QCOMPARE(lib.importProfile(profiles[0].toMap()["path"].toString())["bookmarks"].toInt(), 0);   // no duplicates
     }
 
+    void predictsTheSite()
+    {
+        Library lib(QStringLiteral(":memory:"));
+        QCOMPARE(lib.predict("you"), QString("youtube.com"));       // well-known, before any history
+        QCOMPARE(lib.predict("insta"), QString("instagram.com"));
+        QCOMPARE(lib.predict("hello world"), QString());           // a search, not a site
+        QCOMPARE(lib.predict("youtube.com"), QString());           // already complete
+        lib.addVisit(QUrl("https://www.yourfavourite.test/page"), "Fav");
+        lib.addVisit(QUrl("https://www.yourfavourite.test/other"), "Fav");
+        QCOMPARE(lib.predict("you"), QString("yourfavourite.test"));   // your own sites win
+    }
     void bookmarksHtmlRoundTrip()
     {
         QTemporaryDir dir;

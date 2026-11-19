@@ -57,6 +57,11 @@ int main(int argc, char *argv[])
     QtWebEngineQuick::initialize();   // must come before the app object is created
     QQuickWindow::setDefaultAlphaBuffer(true);   // windows can be see-through (frosted-glass backdrop)
     QGuiApplication app(argc, argv);
+    // Already open (this profile)? Hand it the links (or "open a window") and quit: two copies
+    // on one profile would fight over its files. Windows starts f1int for every link you open
+    // once it's your default browser.
+    if (!qEnvironmentVariableIsSet("F1INT_UI_TEST") && Browser::handOver(QCoreApplication::arguments().mid(1)))
+        return 0;
     QCoreApplication::setApplicationVersion(QStringLiteral(F1INT_VERSION));
     app.setWindowIcon(QIcon(QStringLiteral(":/logo/f1int.svg")));
     QFontDatabase::addApplicationFont(QStringLiteral(":/fonts/Doto.ttf"));   // optional dot-matrix numbers

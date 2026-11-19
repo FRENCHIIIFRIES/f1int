@@ -40,5 +40,6 @@ private slots:
     void empty() { QVERIFY(urlFromInput(QStringLiteral("   "), Search).isEmpty()); }
 };
 
+// (a file on this computer becomes a file address; see urlFromInput)
 QTEST_APPLESS_MAIN(TestUrlInput)
 #include "tst_urlinput.moc"

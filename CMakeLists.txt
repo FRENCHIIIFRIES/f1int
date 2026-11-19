@@ -59,7 +59,7 @@ if(WIN32)
     target_sources(f1int PRIVATE resources/f1int.rc)   # the .exe icon
     # The resource compiler doesn't track the icon file itself: rebuild the .rc when the logo changes.
     set_source_files_properties(resources/f1int.rc PROPERTIES OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/resources/logo/f1int.ico)
-    target_link_libraries(f1int PRIVATE windowsapp dwmapi)   # Windows Hello; frosted-glass window
+    target_link_libraries(f1int PRIVATE windowsapp dwmapi shell32)   # Windows Hello; frosted-glass window
     # Microsoft's C++/WinRT headers need C++20 (coroutines); only this one file uses them.
     set_source_files_properties(src/DeviceAuth.cpp PROPERTIES COMPILE_OPTIONS "/std:c++20")
 elseif(APPLE)

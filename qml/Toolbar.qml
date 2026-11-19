@@ -195,7 +195,17 @@ Rectangle {
                 function onViewChanged() { address.showPageUrl() }
             }
 
-            onTextEdited: suggestions.update(text)
+            property bool erasing: false   // Backspace/Delete: don't fill in again
+            Keys.onPressed: (e) => erasing = e.key === Qt.Key_Backspace || e.key === Qt.Key_Delete
+            onTextEdited: {
+                const typed = text
+                const guess = !erasing && cursorPosition === typed.length ? Browser.library.predict(typed) : ""
+                if (guess.startsWith(typed.toLowerCase()) && guess !== "") {
+                    text = typed + guess.slice(typed.length)
+                    select(typed.length, text.length)   // the guessed part, selected: keep typing to replace it
+                }
+                suggestions.update(typed)
+            }
             onAccepted: {
                 const pick = suggestions.opened && suggestionList.currentIndex >= 0 ? suggestions.items[suggestionList.currentIndex] : null
                 bar.go(pick ? pick.url : Browser.urlFromInput(text))

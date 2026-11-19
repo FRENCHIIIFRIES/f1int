@@ -135,6 +135,37 @@ QVariantList Library::suggest(const QString &text, int limit) const
     return out;
 }
 
+QString Library::predict(const QString &typed) const
+{
+    const QString t = typed.trimmed().toLower();
+    static const QRegularExpression hostLike(QStringLiteral("^[a-z0-9][a-z0-9.-]*$"));
+    if (t.isEmpty() || !hostLike.match(t).hasMatch())
+        return {};
+    // Your sites first: most visited, then bookmarks.
+    const QVariantList args = { QStringLiteral("%://") + t + QLatin1Char('%'), QStringLiteral("%://www.") + t + QLatin1Char('%') };
+    QVariantList rows = query(QStringLiteral("SELECT url FROM history WHERE url LIKE ? OR url LIKE ? ORDER BY visits DESC, last_visit DESC LIMIT 30"), args);
+    rows += query(QStringLiteral("SELECT url FROM bookmarks WHERE url LIKE ? OR url LIKE ? LIMIT 30"), args);
+    for (const QVariant &r : rows) {
+        QString host = QUrl(r.toMap()["url"].toString()).host().toLower();
+        if (host.startsWith(QLatin1String("www.")))
+            host.remove(0, 4);
+        if (host.startsWith(t) && host != t)
+            return host;
+    }
+    // Before you've been anywhere: well-known sites, most used first.
+    static const QStringList known = {
+        "google.com", "youtube.com", "instagram.com", "facebook.com", "x.com", "whatsapp.com", "wikipedia.org", "reddit.com",
+        "amazon.com", "netflix.com", "tiktok.com", "linkedin.com", "spotify.com", "open.spotify.com", "github.com", "chatgpt.com",
+        "gmail.com", "mail.google.com", "outlook.com", "twitch.tv", "discord.com", "pinterest.com", "bing.com", "yahoo.com",
+        "duckduckgo.com", "apple.com", "microsoft.com", "ebay.com", "paypal.com", "zoom.us", "canva.com", "quora.com",
+        "stackoverflow.com", "imdb.com", "flipkart.com", "hotstar.com", "primevideo.com", "music.youtube.com", "maps.google.com",
+        "drive.google.com", "docs.google.com", "claude.ai" };
+    for (const QString &site : known)
+        if (site.startsWith(t) && site != t)
+            return site;
+    return {};
+}
+
 // ---------------- import from Chrome / Edge / Brave ----------------
 
 // Chrome stores times as microseconds since 1 January 1601; we use milliseconds since 1970.

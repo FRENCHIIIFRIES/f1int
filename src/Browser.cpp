@@ -12,6 +12,11 @@
 #include <QUuid>
 #include <QFile>
 #include <algorithm>
+#include <QCryptographicHash>
+#include <QDesktopServices>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include "UrlInput.h"
 #include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -25,7 +30,8 @@
 #ifdef Q_OS_WIN
 #define NOMINMAX   // stop windows.h from defining min/max macros that clash with Qt
 #include <windows.h>
-#include <dwmapi.h>   // window backdrop (frosted glass)
+#include <dwmapi.h>
+#include <shlobj.h>   // SHChangeNotify (tell Windows f1int registered as a browser)   // window backdrop (frosted glass)
 #endif
 
 Browser::Browser(QObject *parent)
@@ -45,6 +51,8 @@ Browser::Browser(QObject *parent)
                                 QCoreApplication::applicationName() + QStringLiteral("-vault-key"), this);
     m_vault->setProperty("autoLockMinutes", setting(QStringLiteral("passwords/autoLockMinutes"), 15).toInt());
     m_nonce = QString::fromLatin1(QUuid::createUuid().toRfc4122().toHex());   // new secret every start
+    if (!qEnvironmentVariableIsSet("F1INT_UI_TEST"))
+        listenForOthers();   // later starts hand their links to this one
     m_account = new Account(this, this);   // optional account + encrypted sync (signed out unless you sign in)
 
     // One shared profile for all normal tabs, saved on disk (cookies, cache, site logins).
@@ -380,6 +388,97 @@ int Browser::restoreSettings(const QVariantMap &values)
     ++m_settingsRevision;
     emit settingChanged();
     return count;
+}
+
+static QString instanceName()
+{
+    // Per user and per profile (named pipes are shared by everyone on the machine).
+    return QStringLiteral("f1int-") + QString::fromLatin1(QCryptographicHash::hash(
+        (QDir::homePath() + QCoreApplication::applicationName()).toUtf8(), QCryptographicHash::Sha1).toHex().left(16));
+}
+
+bool Browser::handOver(const QStringList &args)
+{
+    QLocalSocket socket;
+    socket.connectToServer(instanceName());
+    if (!socket.waitForConnected(500))
+        return false;
+    QStringList links;
+    for (const QString &a : args)
+        if (!a.startsWith(QLatin1Char('-')))
+            links << a;
+    socket.write(links.join(QLatin1Char('\n')).toUtf8() + "\n\n");
+    socket.waitForBytesWritten(1000);
+    socket.disconnectFromServer();
+    return true;
+}
+
+void Browser::listenForOthers()
+{
+    QLocalServer::removeServer(instanceName());   // left over after a crash
+    auto *server = new QLocalServer(this);
+    server->setSocketOptions(QLocalServer::UserAccessOption);
+    if (!server->listen(instanceName()))
+        return;
+    connect(server, &QLocalServer::newConnection, this, [this, server] {
+        while (QLocalSocket *s = server->nextPendingConnection()) {
+            connect(s, &QLocalSocket::readyRead, this, [this, s] {
+                if (!s->peek(64 * 1024).contains("\n\n"))
+                    return;   // wait for the end marker
+                QStringList urls;
+                for (const QString &a : QString::fromUtf8(s->readAll()).split(QLatin1Char('\n'), Qt::SkipEmptyParts))
+                    urls << urlFromInput(a).toString();
+                emit openRequested(urls);
+                s->disconnectFromServer();
+            });
+            connect(s, &QLocalSocket::disconnected, s, &QObject::deleteLater);
+        }
+    });
+}
+
+bool Browser::isDefaultBrowser() const
+{
+#ifdef Q_OS_WIN
+    const QSettings choice(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\UserChoice"),
+                           QSettings::NativeFormat);
+    return choice.value(QStringLiteral("ProgId")).toString() == QLatin1String("f1intURL");
+#else
+    return true;   // shortcut: macOS asks through its own dialog; not wired up yet
+#endif
+}
+
+void Browser::makeDefaultBrowser()
+{
+#ifdef Q_OS_WIN
+    // Everything goes in your own part of the registry (no admin): f1int tells Windows it's a
+    // browser; Windows then lets you pick it. Apps can't make themselves the default any more.
+    const QString exe = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+    const QString open = QLatin1Char('"') + exe + QStringLiteral("\" \"%1\"");
+    QSettings hkcu(QStringLiteral("HKEY_CURRENT_USER\\Software"), QSettings::NativeFormat);
+    for (const QString &prog : { QStringLiteral("f1intURL"), QStringLiteral("f1intHTML") }) {
+        const QString base = QStringLiteral("Classes/") + prog;
+        hkcu.setValue(base + QStringLiteral("/."), prog == QLatin1String("f1intURL") ? QStringLiteral("f1int link") : QStringLiteral("f1int document"));
+        hkcu.setValue(base + QStringLiteral("/DefaultIcon/."), exe + QStringLiteral(",0"));
+        hkcu.setValue(base + QStringLiteral("/shell/open/command/."), open);
+    }
+    const QString client = QStringLiteral("Clients/StartMenuInternet/f1int");
+    hkcu.setValue(client + QStringLiteral("/."), QStringLiteral("f1int"));
+    hkcu.setValue(client + QStringLiteral("/DefaultIcon/."), exe + QStringLiteral(",0"));
+    hkcu.setValue(client + QStringLiteral("/shell/open/command/."), QLatin1Char('"') + exe + QLatin1Char('"'));
+    const QString caps = client + QStringLiteral("/Capabilities");
+    hkcu.setValue(caps + QStringLiteral("/ApplicationName"), QStringLiteral("f1int"));
+    hkcu.setValue(caps + QStringLiteral("/ApplicationDescription"), tr("A light, private browser"));
+    hkcu.setValue(caps + QStringLiteral("/ApplicationIcon"), exe + QStringLiteral(",0"));
+    for (const char *scheme : { "http", "https" })
+        hkcu.setValue(caps + QStringLiteral("/URLAssociations/") + QLatin1String(scheme), QStringLiteral("f1intURL"));
+    for (const char *ext : { ".htm", ".html", ".xhtml", ".pdf", ".svg", ".webp" })
+        hkcu.setValue(caps + QStringLiteral("/FileAssociations/") + QLatin1String(ext), QStringLiteral("f1intHTML"));
+    hkcu.setValue(caps + QStringLiteral("/StartMenu/StartMenuInternet"), QStringLiteral("f1int"));
+    hkcu.setValue(QStringLiteral("RegisteredApplications/f1int"), QStringLiteral("Software\\Clients\\StartMenuInternet\\f1int\\Capabilities"));
+    hkcu.sync();
+    SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, nullptr, nullptr);
+    QDesktopServices::openUrl(QUrl(QStringLiteral("ms-settings:defaultapps?registeredAppUser=f1int")));
+#endif
 }
 
 QString Browser::readTextFile(const QUrl &file) const

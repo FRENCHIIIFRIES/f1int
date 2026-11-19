@@ -313,6 +313,16 @@ Rectangle {
                 }
             }
             Ui.Section {
+                visible: Qt.platform.os === "windows"
+                title: qsTr("Default browser")
+                Ui.SettingRow {
+                    label: Browser.isDefaultBrowser() ? qsTr("f1int is your default browser") : qsTr("f1int isn't your default browser")
+                    hint: qsTr("Links from other apps, web pages and PDFs open in your default browser")
+                    last: true
+                    Ui.Pill { visible: !Browser.isDefaultBrowser(); primary: true; text: qsTr("Make default"); onClicked: Browser.makeDefaultBrowser() }
+                }
+            }
+            Ui.Section {
                 title: qsTr("Starting up")
                 Ui.SettingRow {
                     label: qsTr("Reopen your tabs")
