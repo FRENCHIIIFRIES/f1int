@@ -86,7 +86,7 @@ Rectangle {
                 ColumnLayout {
                     anchors.left: parent.left
                     anchors.leftMargin: 36
-                    anchors.right: remove.left
+                    anchors.right: renameButton.left
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 2
                     Text { text: modelData.title || modelData.url; color: Theme.fg; font.pixelSize: Theme.px(13); elide: Text.ElideRight; Layout.fillWidth: true }
@@ -110,6 +110,15 @@ Rectangle {
                     }
                 }
                 MouseArea { anchors.fill: parent; onClicked: panel.openUrl(modelData.url) }
+                IconButton {   // bookmarks only: change the name
+                    id: renameButton
+                    anchors.right: remove.left
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: rowHover.hovered && panel.page === "bookmarks"
+                    iconName: "edit"
+                    tip: qsTr("Rename")
+                    onClicked: renameBox.openFor(modelData)
+                }
                 IconButton {
                     id: remove
                     anchors.right: parent.right
@@ -130,6 +139,7 @@ Rectangle {
                 font.pixelSize: Theme.px(12)
             }
         }
+        RenameBookmark { id: renameBox }
         Ui.Pill {
             visible: panel.page === "history" && list.count > 0
             text: qsTr("Clear all history")

@@ -105,7 +105,10 @@ ApplicationWindow {
                 last = tabs.idAt(r)
         return last
     }
-    function showPanel(name) { panel = panel === name ? "" : name }
+    function showPanel(name) {
+        if (name === "passwords") return showSettings("passwords")   // passwords live in Settings now
+        panel = panel === name ? "" : name
+    }
     function showSettings(category) {   // open settings at a category (after it has loaded)
         panel = "settings"
         Qt.callLater(() => { const p = pageArea.children.find(c => c.item && c.item.category !== undefined); if (p) p.item.category = category })
@@ -136,6 +139,7 @@ ApplicationWindow {
     }       // { url, username, password, kind } after a login was sent
     property var suggestion: null       // { page, password } for a sign-up box
     property var pendingAction: null    // runs once the vault is unlocked
+    property bool unlockOpenedSettings: false
     function host(url) { return url.toString().replace(/^https?:\/\/(www\.)?/, "").split("/")[0] }
     // Run `action` with the vault unlocked: asks Windows Hello / Touch ID, or opens the
     // Passwords panel for the master password (or to create the vault the first time).
@@ -144,7 +148,7 @@ ApplicationWindow {
         if (v.state === "unlocked") return action()
         pendingAction = action
         if (v.state === "locked" && v.deviceUnlock) Browser.askDevice(window, "unlock")
-        else panel = "passwords"
+        else { unlockOpenedSettings = panel !== "settings"; showSettings("passwords") }
     }
     function offerSave(page, username, password) {
         if (incognito || password === "" || !setting("passwords/offer", true)) return
@@ -199,6 +203,9 @@ ApplicationWindow {
             if (Browser.passwords.state === "unlocked" && window.pendingAction) {
                 const action = window.pendingAction
                 window.pendingAction = null
+                // Settings opened only to unlock: put the page back so the fill can be seen.
+                if (window.unlockOpenedSettings && window.panel === "settings") window.panel = ""
+                window.unlockOpenedSettings = false
                 action()
             }
         }
@@ -206,7 +213,10 @@ ApplicationWindow {
     Connections {
         target: Browser
         function onDeviceAuthFinished(purpose, ok, error) {
-            if (purpose === "unlock" && !ok && window.pendingAction) window.panel = "passwords"   // fall back to the master password
+            if (purpose === "unlock" && !ok && window.pendingAction) {   // fall back to the master password
+                window.unlockOpenedSettings = window.panel !== "settings"
+                window.showSettings("passwords")
+            }
         }
     }
 
@@ -724,7 +734,7 @@ ApplicationWindow {
                         sourceComponent: SettingsPage {
                             focus: true
                             onCloseRequested: window.panel = ""
-                            onOpenPanel: (name) => window.panel = name
+                            onOpenPanel: (name) => name === "passwords" ? window.showSettings("passwords") : window.panel = name
                             onWelcomeRequested: { window.panel = ""; window.showWelcome = true }
                             onOpenUrl: (u) => { window.panel = ""; window.newTab(u) }
                             onNewTabPageRequested: {
@@ -825,7 +835,7 @@ ApplicationWindow {
                                 font.pixelSize: Theme.px(12)
                                 topPadding: 6; bottomPadding: 6
                                 HoverHandler { cursorShape: Qt.PointingHandCursor }
-                                MouseArea { anchors.fill: parent; onClicked: { accountPicker.close(); window.panel = "passwords" } }
+                                MouseArea { anchors.fill: parent; onClicked: { accountPicker.close(); window.showSettings("passwords") } }
                             }
                         }
                     }
@@ -1106,7 +1116,7 @@ ApplicationWindow {
             onTriggered: window.withUnlocked(() => window.autofill(window.view))
         }
         Action { text: qsTr("Suggest a strong password"); onTriggered: window.suggestPassword(window.view) }
-        Action { text: qsTr("Manage passwords"); onTriggered: window.panel = "passwords" }
+        Action { text: qsTr("Manage passwords"); onTriggered: window.showSettings("passwords") }
     }
 
     F1Menu {

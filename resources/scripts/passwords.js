@@ -69,14 +69,19 @@
     const isLoginUsername = el => textLike(el) && (
         passwordFields(el.form || document).some(p => !isNewPassword(p) && (el.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING))
         || /username|email/i.test(el.autocomplete || "") && !passwordFields(el.form || document).some(isNewPassword));
-    document.addEventListener("focusin", e => {
-        const t = e.target;
-        if (t.tagName !== "INPUT") return;
+    function offer(t) {
+        if (!t || t.tagName !== "INPUT") return;
         if (t.type === "password") {
             if (isNewPassword(t)) { if (!t.value) send("newpassword", {}); }
             else send("passwordfocus", { rect: rect(t) });   // a login box (maybe added after the page loaded)
         } else if (isLoginUsername(t)) send("passwordfocus", { rect: rect(t) });
-    }, true);
+    }
+    document.addEventListener("focusin", e => offer(e.target), true);
+    // Pages often put the cursor in the login box themselves, before this helper starts, and
+    // clicking a box that already has the cursor doesn't "focus" it again: clicks count too,
+    // and so does the box that has the cursor right now.
+    document.addEventListener("mousedown", e => { if (e.target === document.activeElement) offer(e.target); }, true);
+    offer(document.activeElement);
 
     // ---- called by f1int ----
     window.__f1intHasLogin = () => passwordFields().length > 0;

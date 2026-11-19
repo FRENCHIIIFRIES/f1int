@@ -101,6 +101,7 @@ qt_add_qml_module(f1int
         qml/PasswordsPanel.qml
         qml/Welcome.qml
         qml/BookmarksBar.qml
+        qml/RenameBookmark.qml
         qml/SettingsPage.qml
         qml/ThemeStudio.qml
         qml/ImportExport.qml

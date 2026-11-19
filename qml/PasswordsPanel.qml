@@ -32,8 +32,9 @@ Rectangle {
         else verifyPopup.open()
     }
 
+    property bool embedded: false       // inside Settings (no side-panel edge)
     color: Theme.surface
-    Rectangle { width: 1; height: parent.height; color: Theme.line }
+    Rectangle { visible: !panel.embedded; width: 1; height: parent.height; color: Theme.line }
     // Drop an exported passwords file anywhere on the panel to import it.
     DropArea {
         anchors.fill: parent
@@ -92,6 +93,8 @@ Rectangle {
         ColumnLayout {
             visible: panel.view === "none"
             Layout.fillWidth: true
+            Layout.maximumWidth: 420              // a form, not a banner, on a wide page
+            Layout.alignment: Qt.AlignHCenter
             spacing: 12
             Text {
                 Layout.fillWidth: true
@@ -132,8 +135,27 @@ Rectangle {
         ColumnLayout {
             visible: panel.view === "locked"
             Layout.fillWidth: true
+            Layout.maximumWidth: 380
+            Layout.alignment: Qt.AlignHCenter
+            Layout.topMargin: 40
             spacing: 12
             Icon { glyph: "lock"; sourceSize: Qt.size(40, 40); Layout.alignment: Qt.AlignHCenter; color: Theme.dim }
+            Text {
+                Layout.alignment: Qt.AlignHCenter
+                text: qsTr("Your passwords are locked")
+                color: Theme.fg
+                font.pixelSize: Theme.px(16)
+                font.weight: Font.DemiBold
+            }
+            Text {
+                Layout.fillWidth: true
+                Layout.bottomMargin: 8
+                horizontalAlignment: Text.AlignHCenter
+                wrapMode: Text.Wrap
+                text: qsTr("They're encrypted on this computer. Unlock to see, edit or fill them.")
+                color: Theme.dim
+                font.pixelSize: Theme.px(12)
+            }
             Ui.Pill {
                 visible: panel.vault.deviceUnlock
                 Layout.fillWidth: true

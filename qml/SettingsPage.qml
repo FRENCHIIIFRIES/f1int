@@ -25,6 +25,7 @@ Rectangle {
         { id: "sidebar", icon: "sidebar", label: qsTr("Sidebar") },
         { id: "tabs", icon: "window", label: qsTr("Tabs and memory") },
         { id: "newtab", icon: "plus", label: qsTr("New tab page") },
+        { id: "passwords", icon: "key", label: qsTr("Passwords") },
         { id: "privacy", icon: "shield", label: qsTr("Privacy and security") },
         { id: "data", icon: "folder", label: qsTr("Import and backup") },
         { id: "downloads", icon: "download", label: qsTr("Downloads") },
@@ -108,6 +109,24 @@ Rectangle {
                 Image { source: "qrc:/logo/f1int.svg"; sourceSize: Qt.size(32, 32); width: 16; height: 16; anchors.verticalCenter: parent.verticalCenter }
                 Text { text: "f1int " + Browser.version; color: Theme.dim; font.family: Theme.numberFont; font.pixelSize: Theme.px(13); anchors.verticalCenter: parent.verticalCenter }
             }
+        }
+    }
+
+    // ---------- Passwords: the password manager itself, full height ----------
+    Rectangle {
+        anchors.left: nav.right
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        visible: page.category === "passwords" && Theme.settingsFilter === ""
+        z: 1
+        color: Theme.bg
+        Loader {   // a readable column, like the other settings
+            width: Math.min(780, parent.width - 48)
+            height: parent.height
+            anchors.horizontalCenter: parent.horizontalCenter
+            active: parent.visible
+            sourceComponent: PasswordsPanel { embedded: true; color: Theme.bg; onCloseRequested: page.closeRequested() }
         }
     }
 
@@ -528,7 +547,7 @@ Rectangle {
                     label: qsTr("Saved passwords")
                     hint: qsTr("Encrypted on this computer (AES-256), never sent anywhere")
                     last: true
-                    Ui.Pill { text: qsTr("Open"); onClicked: page.openPanel("passwords") }
+                    Ui.Pill { text: qsTr("Open"); onClicked: page.category = "passwords" }
                 }
             }
             Ui.Section {
@@ -543,7 +562,7 @@ Rectangle {
     }
     Component {
         id: dataPage
-        ImportExport { onOpenPasswords: page.openPanel("passwords") }
+        ImportExport { onOpenPasswords: page.category = "passwords" }
     }
     Component {
         id: downloadsPage

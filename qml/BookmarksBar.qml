@@ -96,10 +96,12 @@ Item {
             }
         }
     }
+    RenameBookmark { id: renameBox }
     F1Menu {
         id: menu
         property var target: null
         MenuItem { text: qsTr("Open in new tab"); onTriggered: bar.open(menu.target.url, true) }
+        MenuItem { text: qsTr("Rename…"); onTriggered: renameBox.openFor(menu.target) }
         MenuItem { text: qsTr("Remove bookmark"); onTriggered: Browser.library.removeBookmark(menu.target.url) }
     }
 }

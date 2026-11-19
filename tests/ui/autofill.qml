@@ -10,7 +10,7 @@ Item {
     property int waits: 0
     function check(ok, what) { console.warn((ok ? "PASS " : "FAIL ") + what) }
     readonly property string loginPage: "<html><body style='background:#fff;font:16px sans-serif;padding:40px'>" +
-        "<h2>Log in to Example</h2><form action='/done'><p><input id=email name=email type=email></p>" +
+        "<h2>Log in to Example</h2><form action='/done'><p><input id=email name=email type=email autofocus></p>" +
         "<p><input name=pw type=password></p><button>Log in</button></form></body></html>"
     function picker() { return test.win.accountPickerItem }
     Timer {
@@ -27,12 +27,10 @@ Item {
                 v.save("https://login.test/", "work@example.com", "Another-Strong-Pass-7")
                 w.view.loadHtml(test.loginPage, "https://login.test/")
                 break
-            case 1:   // = clicking into the email box (a test window gets no real clicks)
-                w.view.runJavaScript("document.getElementById('email').blur(); document.getElementById('email').focus()")
-                break
+            case 1: break   // the page puts the cursor in the email box itself (autofocus): no click needed
             case 2: {
                 const p = test.picker()
-                test.check(p && p.opened && p.logins.length === 2, "two saved accounts listed under the box")
+                test.check(p && p.opened && p.logins.length === 2, "two saved accounts listed under the box the page selected itself")
                 console.warn("SHOT autofill-picker")
                 w.fillAs(p.logins.find(l => l.username === "work@example.com").id)
                 break
@@ -59,7 +57,9 @@ Item {
                 test.check(u.toString().indexOf("wikipedia.org.png") > 0, "site icon kept for bookmarks: " + u)
                 break
             }
-            case 9: console.warn("DONE"); running = false; break
+            case 9: w.showSettings("passwords"); break
+            case 10: console.warn("SHOT settings-passwords"); break
+            case 11: console.warn("DONE"); running = false; break
             }
         }
     }
